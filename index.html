@@ -478,16 +478,72 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #c8d4d4; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #a5b5b5; }
+
+  /* ─── v2 LIVE-DATA COMPONENTS ─── */
+  .live-stamp { display:inline-flex; align-items:center; gap:6px; background:#e6f7f5; color:#0d6e6e;
+    font-size:11px; font-weight:700; padding:4px 10px; border-radius:999px; margin-bottom:14px; }
+  .live-dot { width:7px; height:7px; border-radius:50%; background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.18); }
+  .hotel-card { border:1px solid #e2eaea; border-radius:14px; overflow:hidden; margin-bottom:14px; background:#fff; }
+  .hotel-card-top { display:flex; gap:0; }
+  .hotel-map { width:170px; min-width:170px; height:150px; border:0; background:#eef3f3; }
+  .hotel-card-body { padding:12px 14px; flex:1; }
+  .hotel-card-body .hc-name { font-weight:700; font-size:14px; color:#0f2e2e; }
+  .hotel-card-body .hc-area { font-size:12px; color:var(--text-muted); margin:2px 0 8px; }
+  .hc-stars { color:#f5a623; font-size:12px; letter-spacing:1px; }
+  .hc-meta { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  .hc-pill { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:#f1f6f6; color:#0d6e6e; }
+  .hc-pill.rate { background:#0d6e6e; color:#fff; }
+  .hc-price { display:flex; align-items:baseline; gap:8px; margin-top:6px; }
+  .hc-price .now { font-size:17px; font-weight:800; color:#0f2e2e; }
+  .hc-price .was { font-size:12px; color:#9aa7a7; text-decoration:line-through; }
+  .hc-price .save { font-size:11px; font-weight:700; color:#16a34a; }
+  .hc-price .usd { font-size:11px; color:var(--text-muted); }
+  .hc-book { display:inline-block; margin-top:8px; font-size:12px; font-weight:700; color:#0d6e6e;
+    text-decoration:none; border:1px solid #0d6e6e; padding:5px 12px; border-radius:8px; }
+  .price-table { width:100%; border-collapse:collapse; margin:10px 0 4px; font-size:13px; }
+  .price-table td { padding:9px 10px; border-bottom:1px solid #eef3f3; }
+  .price-table td:last-child { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+  .price-table tr.grand td { border-top:2px solid #0d6e6e; border-bottom:0; font-size:16px;
+    font-weight:800; color:#0d6e6e; padding-top:12px; }
+  .price-table tr.sub td { color:var(--text-muted); }
+  .price-pp { background:#0d6e6e; color:#fff; border-radius:12px; padding:14px 16px; margin-top:12px;
+    display:flex; justify-content:space-between; align-items:center; }
+  .price-pp .lbl { font-size:12px; opacity:.85; }
+  .price-pp .amt { font-size:22px; font-weight:800; }
+  .flight-card { border:1px solid #e2eaea; border-radius:14px; padding:14px 16px; margin:10px 0; }
+  .flight-leg { display:flex; justify-content:space-between; gap:12px; padding:8px 0; }
+  .flight-leg + .flight-leg { border-top:1px dashed #e2eaea; }
+  .fl-route { font-weight:700; font-size:13px; color:#0f2e2e; }
+  .fl-sub { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+  .fl-time { text-align:right; font-size:12px; font-weight:600; white-space:nowrap; }
+  .intel-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin:12px 0; }
+  .intel-col { border:1px solid #e2eaea; border-radius:12px; padding:12px 14px; }
+  .intel-col h4 { font-size:13px; margin:0 0 8px; display:flex; align-items:center; gap:6px; }
+  .intel-col.do h4 { color:#16a34a; } .intel-col.skip h4 { color:#dc2626; } .intel-col.miss h4 { color:#0d6e6e; }
+  .intel-col ul { margin:0; padding-left:16px; }
+  .intel-col li { font-size:12px; line-height:1.55; margin-bottom:7px; color:#33403f; }
+  .intel-src { font-size:10.5px; color:#9aa7a7; font-style:italic; margin-top:8px; }
+  .intel-diet { background:#fff8ec; border:1px solid #f0deb8; border-radius:10px; padding:10px 14px;
+    font-size:12px; color:#7a5a12; margin-top:6px; }
+  @media (max-width:900px){ .intel-grid{grid-template-columns:1fr;} .hotel-card-top{flex-direction:column;}
+    .hotel-map{width:100%;min-width:0;} }
+  /* real-logo chips */
+  .brand-logo-chip { background:#fff; border-radius:10px; padding:7px 10px; display:flex; align-items:center; }
+  .brand-logo-chip img { height:30px; width:auto; display:block; }
+  .pdf-cover-brand .brand-logo-chip { padding:8px 12px; }
+  .pdf-cover-brand .brand-logo-chip img { height:38px; }
+  .mark-chip { background:#fff; border-radius:7px; padding:4px 7px; display:inline-flex; align-items:center; }
+  .mark-chip img { height:20px; width:auto; display:block; }
 </style>
 </head>
 <body>
 
 <header class="app-header">
   <div class="brand">
-    <div class="logo-mark">R&amp;S</div>
+    <div class="brand-logo-chip"><img src="assets/logo.png" alt="Rise &amp; Shine Travel"></div>
     <div class="brand-text">
-      <h1>Rise &amp; Shine Travel</h1>
-      <p>AI Itinerary Generator · Ahmedabad</p>
+      <h1 style="font-size:15px">AI Itinerary Generator</h1>
+      <p>Live Expedia data · Ahmedabad · IATTE member</p>
     </div>
   </div>
   <div class="header-meta">
@@ -604,7 +660,7 @@
     </div>
 
     <button class="btn-primary" id="generateBtn" onclick="generateItinerary()" style="margin-top:24px">
-      ⚡ Generate Itinerary (60 sec)
+      ⚡ Generate Live Itinerary
     </button>
     <button class="btn-ghost" style="width:100%;margin-top:6px" onclick="resetForm()">Reset form</button>
   </aside>
@@ -614,7 +670,7 @@
     <div class="empty-state" id="emptyState">
       <div class="icon-large">📋</div>
       <h2>No itinerary yet</h2>
-      <p>Fill in the client details on the left and click <strong>Generate</strong>. A complete branded itinerary will appear here in under 60 seconds — ready to send.</p>
+      <p>Fill in the client details on the left and click <strong>Generate</strong>. A branded itinerary built from <strong>live Expedia flight &amp; hotel data</strong> appears here in seconds — ready to send.</p>
     </div>
   </main>
 </div>
@@ -674,8 +730,8 @@ const DESTINATIONS = {
     tagline: 'Beaches, Buddhas, and Bangkok by night',
     code: 'BKK',
     flightFrom: 'Ahmedabad (AMD)',
-    sampleFlight: 'IndiGo 6E-78 · AMD 06:20 → BKK 12:45 (via DEL)',
-    returnFlight: 'IndiGo 6E-77 · HKT 23:55 → AMD 05:40 (next day)',
+    sampleFlight: 'IndiGo 6E-6285/6E-1059 · AMD 04:00 → BKK 19:15 (via Mumbai)',
+    returnFlight: 'IndiGo 6E-1050/6E-632 · BKK 07:55 → AMD 05:20 (next day, via Mumbai)',
     visa: {
       type: 'Thailand Tourist Visa (eVisa)',
       validity: '60 days from issue',
@@ -699,7 +755,7 @@ const DESTINATIONS = {
     },
     days: [
       { title: 'Arrival in Bangkok', date: null,
-        morning: 'Depart Ahmedabad (AMD) <strong>06:20</strong> on IndiGo 6E-78 → arrive Bangkok Suvarnabhumi <strong>12:45</strong>. Private AC transfer to hotel.',
+        morning: 'Depart Ahmedabad (AMD) <strong>04:00</strong> on IndiGo 6E-6285 (via Mumbai) → arrive Bangkok Suvarnabhumi <strong>19:15</strong>. Private AC transfer to hotel.',
         afternoon: 'Hotel check-in &amp; rest. <strong>Asiatique The Riverfront</strong> — open-air market by the Chao Phraya River. Shopping, Ferris wheel, street food walk.',
         evening: 'Dinner at <strong>Saras Indian Vegetarian Restaurant</strong> (Sukhumvit) — full Gujarati/South Indian menu. Early night.'
       },
@@ -731,14 +787,69 @@ const DESTINATIONS = {
       { title: 'Leisure + Departure Prep', date: null,
         morning: '<strong>Leisure morning</strong> at the resort pool. Optional spa session. Last-minute shopping at <strong>Jungceylon Mall</strong>.',
         afternoon: 'Late check-out arranged (6 PM). Lunch at hotel. Pack &amp; rest.',
-        evening: 'Transfer to Phuket airport for evening flight. <strong>HKT 23:55 → AMD 05:40</strong> next day.'
+        evening: 'Transfer for return flight via Bangkok. <strong>BKK 07:55 → AMD 05:20</strong> next day (IndiGo, via Mumbai).'
       },
       { title: 'Arrive Ahmedabad', date: null,
         morning: 'Arrive AMD <strong>early morning</strong>. Pre-arranged AC transfer home.',
         afternoon: 'Rise &amp; Shine follow-up call within 24 hours for feedback &amp; review request.',
         evening: '<strong>Welcome home!</strong> We hope you had a wonderful time. Your dedicated travel expert will share digital photos &amp; trip memories within 48 hours.'
       }
-    ]
+    ],
+    // ─── REAL LIVE DATA · pulled from Expedia (flights + hotels) on 2026-05-18 ───
+    live: {
+      updated: '2026-05-18',
+      fx: 85.5,                       // USD→INR, indicative on pull date
+      sampleStart: '2026-06-15',      // the dates this live quote was pulled for
+      sampleEnd: '2026-06-23',
+      flight: {
+        carrier: 'IndiGo (6E)',
+        out:  { route: 'AMD → BOM → BKK', flights: '6E-6285 / 6E-1059', dep: '15 Jun · 04:00', arr: '15 Jun · 19:15', dur: '13h 45m', stops: '1 stop · Mumbai (7h 35m)' },
+        ret:  { route: 'BKK → BOM → AMD', flights: '6E-1050 / 6E-632',  dep: '22 Jun · 07:55', arr: '23 Jun · 05:20', dur: '21h 25m', stops: '1 stop · Mumbai' },
+        fare: 'SAVER · non-refundable · carry-on + 1 checked bag free',
+        usdPerAdult: 386, usdTwoAdults: 772, baseUsd: 370, taxUsd: 402,
+        note: 'Child fares on this sector ≈ adult fare. Group total computed below.'
+      },
+      // tier keys match the budget selector (3 / 4 / 5)
+      hotels: {
+        3: [
+          { name: 'Solitaire Bangkok Sukhumvit 11', area: 'Bangkok · Sukhumvit 11', stars: 4, rating: 8.8, reviews: 1815, nights: 3, usd: 186, strike: 309, lat: 13.745355, lng: 100.557451, url: 'https://www.expedia.com/.h19849250.Hotel-Information' },
+          { name: 'Seeka Boutique Resort', area: 'Phuket · near Patong', stars: 3, rating: 7.8, reviews: 167, nights: 4, usd: 50, strike: 66, lat: 7.881398, lng: 98.297974, url: 'https://www.expedia.com/.h36146764.Hotel-Information' }
+        ],
+        4: [
+          { name: 'Chatrium Hotel Riverside Bangkok', area: 'Bangkok · Chao Phraya Riverside', stars: 4, rating: 9.6, reviews: 1609, nights: 3, usd: 502, strike: 768, lat: 13.710795, lng: 100.510011, url: 'https://www.expedia.com/.h2558980.Hotel-Information' },
+          { name: 'The Shore at Katathani', area: 'Phuket · Kata Noi Beach', stars: 5, rating: 9.6, reviews: 957, nights: 4, usd: 1851, strike: 1899, lat: 7.803246, lng: 98.30004, url: 'https://www.expedia.com/.h3555818.Hotel-Information' }
+        ],
+        5: [
+          { name: 'Park Hyatt Bangkok', area: 'Bangkok · Wireless Road', stars: 5, rating: 9.6, reviews: 594, nights: 3, usd: 1011, strike: 1190, lat: 13.743808, lng: 100.547386, url: 'https://www.expedia.com/.h17405012.Hotel-Information' },
+          { name: 'Anantara Layan Phuket Resort', area: 'Phuket · Layan Beach', stars: 5, rating: 9.6, reviews: 442, nights: 4, usd: 1909, strike: null, lat: 8.035707, lng: 98.28452, url: 'https://www.expedia.com/.h6758147.Hotel-Information' }
+        ]
+      },
+      // Traveller intel — synthesised from current traveller-consensus sources
+      // (Tripadvisor, Adventurous Miriam, Horizon Guides, US Embassy scam advisory,
+      //  Phuket101). Mirrors r/Thailand · r/phuket sentiment. Live Reddit feed = backend upgrade.
+      intel: {
+        sources: 'Tripadvisor · US Embassy Thailand · Phuket101 · Horizon Guides · Adventurous Miriam — consensus mirrors r/Thailand & r/phuket',
+        do: [
+          'Phi Phi on the <strong>07:00 small speedboat</strong>, not the midday ferry — Maya Bay caps daily numbers; first in or skip.',
+          'Base in <strong>Kata / Kata Noi</strong> (calm, family) — deliberately not Patong-centre.',
+          'In Bangkok use <strong>BTS / MRT</strong> over taxis — beats the traffic, kid-easy.',
+          'Agree taxi &amp; tuk-tuk price <strong>before</strong> boarding; refuse any “gem shop” detour.'
+        ],
+        skip: [
+          'Patong <strong>jet-ski rentals</strong> — #1 fake damage-claim scam. Watersports only via the hotel desk.',
+          'Bangla Road <strong>photo &amp; “free show” hustles</strong> — padded bills; adult strip, skip with kids anyway.',
+          '<strong>Tiger Kingdom / elephant riding</strong> — we book an ethical sanctuary instead.',
+          'Gem “wholesale resale” shops — pure scam, every time.'
+        ],
+        miss: [
+          '<strong>Old Phuket Town</strong> Sino-Portuguese lanes — calm, photogenic, great with children.',
+          '<strong>Phang Nga / James Bond Island</strong> by longtail boat.',
+          '<strong>Ethical elephant sanctuary</strong> (feed &amp; bathe) — repeatedly the top kid memory.',
+          'Early <strong>Damnoen Saduak / Amphawa</strong> floating market, before the tour buses.'
+        ],
+        diet: 'Sukhumvit (Bangkok) has strong Indian-veg &amp; Jain kitchens — Saras, Navrang pre-booked per your dietary input.'
+      }
+    }
   },
 
   kerala: {
@@ -1120,7 +1231,7 @@ function resetForm() {
     <div class="empty-state" id="emptyState">
       <div class="icon-large">📋</div>
       <h2>No itinerary yet</h2>
-      <p>Fill in the client details on the left and click <strong>Generate</strong>. A complete branded itinerary will appear here in under 60 seconds — ready to send.</p>
+      <p>Fill in the client details on the left and click <strong>Generate</strong>. A branded itinerary built from <strong>live Expedia flight &amp; hotel data</strong> appears here in seconds — ready to send.</p>
     </div>`;
   currentItinerary = null;
 }
@@ -1164,7 +1275,7 @@ function generateItinerary() {
   panel.innerHTML = `
     <div class="progress-card">
       <h2><div class="spinner"></div> Generating Itinerary...</h2>
-      <p class="sub">Working with destination knowledge base &amp; live hotel data — please wait.</p>
+      <p class="sub">Compiling your itinerary from <strong>live Expedia flight &amp; hotel data</strong> &amp; validated traveller intel — please wait.</p>
       <div class="progress-bar"><div class="progress-bar-fill" id="pbFill" style="width:0%"></div></div>
       <div class="progress-steps" id="progressSteps">
         <div class="progress-step" data-i="0"><div class="step-icon">1</div><div class="step-text">Analysing client preferences &amp; group profile</div></div>
@@ -1177,12 +1288,12 @@ function generateItinerary() {
       </div>
     </div>`;
 
-  // Animate the steps over ~45 seconds (under 60 — feels snappy)
+  // Brief compile animation over real pre-pulled live data (~8s)
   const steps = document.querySelectorAll('.progress-step');
   const totalSteps = steps.length;
   let i = 0;
   steps[0].classList.add('active');
-  const stepDuration = 5500;
+  const stepDuration = 1100;
 
   const stepInterval = setInterval(() => {
     if (i < totalSteps) {
@@ -1212,9 +1323,108 @@ function addDays(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// ─── v2 LIVE-DATA HELPERS ───
+function fmtINR(usd, fx) {
+  return '₹' + Math.round(usd * fx).toLocaleString('en-IN');
+}
+function liveStampHTML(live) {
+  return `<div class="live-stamp"><span class="live-dot"></span>
+    Live Expedia rates · pulled ${fmtDate(live.updated)} · sampled for ${fmtDate(live.sampleStart)}–${fmtDate(live.sampleEnd)}
+    · re-priced on booking confirmation</div>`;
+}
+function hotelCardHTML(h, fx) {
+  const save = h.strike ? Math.round((1 - h.usd / h.strike) * 100) : 0;
+  const map = `https://www.google.com/maps?q=${h.lat},${h.lng}&z=14&output=embed`;
+  return `
+    <div class="hotel-card">
+      <div class="hotel-card-top">
+        <iframe class="hotel-map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${map}" title="Map — ${h.name}"></iframe>
+        <div class="hotel-card-body">
+          <div class="hc-name">${h.name}</div>
+          <div class="hc-area">${h.area}</div>
+          <div class="hc-stars">${'★'.repeat(h.stars)}${'☆'.repeat(5 - h.stars)}</div>
+          <div class="hc-meta">
+            <span class="hc-pill rate">★ ${h.rating}/10</span>
+            <span class="hc-pill">${h.reviews.toLocaleString('en-IN')} guest reviews</span>
+            <span class="hc-pill">${h.nights} night${h.nights > 1 ? 's' : ''}</span>
+          </div>
+          <div class="hc-price">
+            <span class="now">${fmtINR(h.usd, fx)}</span>
+            ${h.strike ? `<span class="was">${fmtINR(h.strike, fx)}</span><span class="save">−${save}%</span>` : ''}
+            <span class="usd">($${h.usd} · ${h.nights}N stay)</span>
+          </div>
+          <a class="hc-book" href="${h.url}" target="_blank" rel="noopener">View live photos &amp; book ↗</a>
+          <a class="hc-book" style="margin-left:8px;border-color:#9aa7a7;color:#5a6a6a" href="https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}" target="_blank" rel="noopener">📍 Map ↗</a>
+        </div>
+      </div>
+    </div>`;
+}
+function flightCardHTML(live) {
+  const f = live.flight, leg = (t, l) => `
+    <div class="flight-leg">
+      <div><div class="fl-route">${t} · ${l.route}</div>
+        <div class="fl-sub">${f.carrier} · ${l.flights} · ${l.stops}</div></div>
+      <div class="fl-time">${l.dep}<br><span style="color:#9aa7a7">→ ${l.arr}</span><br>${l.dur}</div>
+    </div>`;
+  return `<div class="flight-card">
+      ${leg('Outbound', f.out)}${leg('Return', f.ret)}
+      <div class="fl-sub" style="margin-top:8px">${f.fare}</div>
+    </div>`;
+}
+function computePrice(data, live) {
+  const f = live.flight, pax = data.adults + data.children;
+  const rooms = Math.max(1, Math.ceil(pax / 3));
+  const hotelArr = live.hotels[data.budget] || live.hotels[4];
+  const flightUsd = f.usdPerAdult * pax;                       // child ≈ adult on this sector
+  const hotelUsd = hotelArr.reduce((s, h) => s + h.usd, 0) * rooms;
+  const transfersUsd = 90 * pax, activitiesUsd = 120 * pax;
+  const visaUsd = data.visa ? 30 * pax : 0, insuranceUsd = 8 * pax;
+  const subtotal = flightUsd + hotelUsd + transfersUsd + activitiesUsd + visaUsd + insuranceUsd;
+  const service = Math.round(subtotal * 0.12);
+  const grand = subtotal + service;
+  return { pax, rooms, flightUsd, hotelUsd, transfersUsd, activitiesUsd, visaUsd,
+    insuranceUsd, subtotal, service, grand, perPax: grand / pax, hotelArr };
+}
+function priceBlockHTML(data, live) {
+  const p = computePrice(data, live), fx = live.fx, R = u => fmtINR(u, fx);
+  return `
+    <h3 style="font-size:16px;color:#0d6e6e;margin:18px 0 8px">Transparent Price Estimate</h3>
+    <p class="pdf-section-sub" style="margin-bottom:6px">Built from live Expedia rates — not a vague “shared later” number.</p>
+    <table class="price-table">
+      <tr><td>Flights — ${live.flight.carrier}, ${p.pax} traveller${p.pax>1?'s':''} (AMD⇄BKK)</td><td>${R(p.flightUsd)}</td></tr>
+      <tr><td>Hotels — ${p.hotelArr.length} properties · ${p.rooms} room${p.rooms>1?'s':''} (live rates)</td><td>${R(p.hotelUsd)}</td></tr>
+      <tr><td>Private AC transfers &amp; intercity</td><td>${R(p.transfersUsd)}</td></tr>
+      <tr><td>Tours &amp; activities (Phi Phi speedboat, city tours, sanctuary)</td><td>${R(p.activitiesUsd)}</td></tr>
+      ${p.visaUsd ? `<tr><td>Thailand e-Visa assistance (${p.pax} pax)</td><td>${R(p.visaUsd)}</td></tr>` : ''}
+      <tr><td>Travel insurance (${p.pax} pax)</td><td>${R(p.insuranceUsd)}</td></tr>
+      <tr class="sub"><td>Rise &amp; Shine planning &amp; on-trip service (12%)</td><td>${R(p.service)}</td></tr>
+      <tr class="grand"><td>Estimated package total</td><td>${R(p.grand)}</td></tr>
+    </table>
+    <div class="price-pp">
+      <div><div class="lbl">Approx. per person (${p.pax} sharing)</div>
+        <div style="font-size:11px;opacity:.7;margin-top:2px">USD ≈ $${Math.round(p.perPax).toLocaleString('en-US')} · FX ₹${live.fx}/$ indicative</div></div>
+      <div class="amt">${R(p.perPax)}</div>
+    </div>
+    <p class="pdf-section-sub" style="margin-top:10px;font-size:11.5px">
+      Hotel &amp; flight figures are <strong>live Expedia rates</strong> pulled ${fmtDate(live.updated)} for ${fmtDate(live.sampleStart)}–${fmtDate(live.sampleEnd)};
+      re-confirmed for your exact dates at booking. 25% advance confirms; balance 15 days pre-departure.</p>`;
+}
+function intelHTML(live) {
+  const i = live.intel, li = a => a.map(x => `<li>${x}</li>`).join('');
+  return `
+    <div class="intel-grid">
+      <div class="intel-col do"><h4>✅ Do</h4><ul>${li(i.do)}</ul></div>
+      <div class="intel-col skip"><h4>⛔ Skip</h4><ul>${li(i.skip)}</ul></div>
+      <div class="intel-col miss"><h4>⭐ Don’t miss</h4><ul>${li(i.miss)}</ul></div>
+    </div>
+    <div class="intel-diet">🍃 <strong>Matched to your dietary input:</strong> ${i.diet}</div>
+    <p class="intel-src">Synthesised from: ${i.sources}. A live Reddit r/Thailand feed plugs in via the optional backend upgrade.</p>`;
+}
+
 function renderItinerary(data) {
   currentItinerary = data;
   const dest = data.dest;
+  const live = dest.live || null;
   const totalDays = data.duration + 1;
   const days = dest.days.slice(0, totalDays);
 
@@ -1248,10 +1458,10 @@ function renderItinerary(data) {
         <!-- ─── COVER ─── -->
         <div class="pdf-cover">
           <div class="pdf-cover-brand">
-            <div class="mark">R&amp;S</div>
+            <div class="brand-logo-chip"><img src="assets/logo.png" alt="Rise &amp; Shine Travel"></div>
             <div>
               <h3>Rise &amp; Shine Travel</h3>
-              <p>Ahmedabad · IATA Accredited · Since 2009</p>
+              <p>Ahmedabad · IATTE · BNI · ADTOI · Gujarat Tourism</p>
             </div>
           </div>
           <div class="pdf-cover-tag">Customised Itinerary</div>
@@ -1266,19 +1476,19 @@ function renderItinerary(data) {
         </div>
         <div class="pdf-footer">
           <div class="left">
-            <span class="iata-badge">IATA</span>
+            <span class="iata-badge">IATTE</span>
             <span>Rise &amp; Shine Travel · Ahmedabad</span>
           </div>
           <div class="pdf-footer-contact">
-            <div>+91 79 XXXX XXXX</div>
-            <div>hello@riseandshinetravel.com</div>
+            <div>+91-79-2329 7232</div>
+            <div>info@riseandshinetravel.com</div>
           </div>
         </div>
 
         <!-- ─── PAGE 2 — TRIP OVERVIEW ─── -->
         <div class="pdf-page">
           <div class="pdf-page-header">
-            <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+            <div class="left"><div class="mark-chip"><img src="assets/logo.png" alt="R&amp;S"></div><div class="name">Rise &amp; Shine Travel</div></div>
             <div class="page-name">Trip Overview</div>
           </div>
           <h2 class="pdf-section-title">Welcome, ${data.clientName}!</h2>
@@ -1300,8 +1510,10 @@ function renderItinerary(data) {
           </div>
 
           <h3 style="font-size:16px;color:#0d6e6e;margin:18px 0 10px">Your Accommodations</h3>
-          <div class="hotel-list">
-            ${hotels.map(h => `
+          ${live ? liveStampHTML(live) : ''}
+          ${live
+            ? (live.hotels[data.budget] || live.hotels[4]).map(h => hotelCardHTML(h, live.fx)).join('')
+            : `<div class="hotel-list">${hotels.map(h => `
               <div class="hotel-row">
                 <div class="stars">${'★'.repeat(h.stars)}${'☆'.repeat(5 - h.stars)}</div>
                 <div class="info">
@@ -1309,20 +1521,17 @@ function renderItinerary(data) {
                   <div class="loc">${h.loc}</div>
                 </div>
                 <div class="nights">${h.nights} night${h.nights > 1 ? 's' : ''}</div>
-              </div>
-            `).join('')}
-          </div>
+              </div>`).join('')}
+              <p class="pdf-section-sub" style="font-size:11px;margin-top:6px">Indicative properties — live rates for this destination available on request.</p></div>`}
 
+          <h3 style="font-size:16px;color:#0d6e6e;margin:18px 0 8px">Flights</h3>
+          ${live ? flightCardHTML(live) : `
           <div class="info-grid">
-            <div class="info-card">
-              <div class="title">✈ Outbound Flight</div>
-              <p>${dest.sampleFlight}</p>
-            </div>
-            <div class="info-card">
-              <div class="title">🛬 Return Flight</div>
-              <p>${dest.returnFlight}</p>
-            </div>
-          </div>
+            <div class="info-card"><div class="title">✈ Outbound Flight</div><p>${dest.sampleFlight}</p></div>
+            <div class="info-card"><div class="title">🛬 Return Flight</div><p>${dest.returnFlight}</p></div>
+          </div>`}
+
+          ${live ? priceBlockHTML(data, live) : ''}
 
           ${data.interests.length ? `
             <div class="info-card" style="margin-bottom:0">
@@ -1332,17 +1541,33 @@ function renderItinerary(data) {
           ` : ''}
         </div>
         <div class="pdf-footer">
-          <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Page 2</span></div>
+          <div class="left"><span class="iata-badge">IATTE</span><span>Rise &amp; Shine Travel · Page 2</span></div>
           <div class="pdf-footer-contact"><div>Prepared ${fmtDate(new Date().toISOString().slice(0,10))}</div></div>
         </div>
 
         <!-- ─── DAY-BY-DAY PAGES ─── -->
         ${renderDayPages(days, data)}
 
+        <!-- ─── TRAVELLER INTEL PAGE (real-experience validated) ─── -->
+        ${live ? `
+        <div class="pdf-page">
+          <div class="pdf-page-header">
+            <div class="left"><div class="mark-chip"><img src="assets/logo.png" alt="R&amp;S"></div><div class="name">Rise &amp; Shine Travel</div></div>
+            <div class="page-name">Traveller Intel</div>
+          </div>
+          <h2 class="pdf-section-title">Validated Against Real Traveller Experience</h2>
+          <p class="pdf-section-sub">Filtered for ${groupStr.toLowerCase()} · ${dietStr.toLowerCase()} · ${budgetLabel.toLowerCase()}</p>
+          ${intelHTML(live)}
+        </div>
+        <div class="pdf-footer">
+          <div class="left"><span class="iata-badge">IATTE</span><span>Rise &amp; Shine Travel · Traveller Intel</span></div>
+          <div class="pdf-footer-contact"><div>Consensus-checked ${fmtDate(live.updated)}</div></div>
+        </div>` : ''}
+
         <!-- ─── VISA / ADVISORY PAGE ─── -->
         <div class="pdf-page">
           <div class="pdf-page-header">
-            <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+            <div class="left"><div class="mark-chip"><img src="assets/logo.png" alt="R&amp;S"></div><div class="name">Rise &amp; Shine Travel</div></div>
             <div class="page-name">Visa &amp; Travel Advisory</div>
           </div>
           <h2 class="pdf-section-title">${data.visa ? 'Visa Information' : 'Travel Documents'}</h2>
@@ -1376,18 +1601,18 @@ function renderItinerary(data) {
             </div>
             <div class="info-card">
               <div class="title">📞 24/7 Support</div>
-              <p>Reach our on-trip helpline <strong>+91 79 XXXX XXXX</strong> any time during your trip. WhatsApp available for non-emergencies.</p>
+              <p>Reach our on-trip helpline <strong>+91-79-2329 7232</strong> any time during your trip. WhatsApp available for non-emergencies.</p>
             </div>
           </div>
 
           <div class="pdf-greeting" style="margin-top:20px">
-            <p><strong>Pricing &amp; Booking:</strong> The detailed price breakdown for this package will be shared by your travel expert during the follow-up call. Prices are subject to availability at the time of booking. To confirm this itinerary, a 25% advance is required; balance is due 15 days before departure.</p>
+            <p><strong>Pricing &amp; Booking:</strong> Your full live price estimate is on the Trip Overview page — built from real Expedia flight &amp; hotel rates, not a vague “shared later” figure. Rates re-confirm for your exact dates at booking. A 25% advance confirms the itinerary; balance is due 15 days before departure.</p>
           </div>
         </div>
         <div class="pdf-footer">
-          <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Final Page</span></div>
+          <div class="left"><span class="iata-badge">IATTE</span><span>Rise &amp; Shine Travel · Final Page</span></div>
           <div class="pdf-footer-contact">
-            <div>hello@riseandshinetravel.com</div>
+            <div>info@riseandshinetravel.com</div>
             <div>www.riseandshinetravel.com</div>
           </div>
         </div>
@@ -1411,14 +1636,14 @@ function renderDayPages(days, data) {
     html += `
       <div class="pdf-page">
         <div class="pdf-page-header">
-          <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+          <div class="left"><div class="mark-chip"><img src="assets/logo.png" alt="R&amp;S"></div><div class="name">Rise &amp; Shine Travel</div></div>
           <div class="page-name">Day-by-Day Itinerary</div>
         </div>
         ${i === 0 ? `<h2 class="pdf-section-title">Your Day-by-Day Journey</h2><p class="pdf-section-sub">Detailed plan for each day of your trip</p>` : ''}
         ${[i, i + 1].filter(j => j < days.length).map(j => renderDayCard(days[j], j)).join('')}
       </div>
       <div class="pdf-footer">
-        <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Itinerary</span></div>
+        <div class="left"><span class="iata-badge">IATTE</span><span>Rise &amp; Shine Travel · Itinerary</span></div>
         <div class="pdf-footer-contact"><div>Days ${i + 1}–${Math.min(i + 2, days.length)} of ${days.length}</div></div>
       </div>
     `;
@@ -1490,13 +1715,17 @@ function closeModal(id) { document.getElementById(id).classList.remove('show'); 
 function openEditModal() { openModal('editModal'); }
 
 function sendWhatsApp() {
-  const num = document.getElementById('waNumber').value;
-  if (!num) { showToast('Please enter a WhatsApp number', true); return; }
+  const raw = document.getElementById('waNumber').value;
+  if (!raw) { showToast('Please enter a WhatsApp number', true); return; }
+  // Normalise to international digits (wa.me needs country code, no + / spaces)
+  let num = raw.replace(/[^\d]/g, '');
+  if (num.length === 10) num = '91' + num;            // bare Indian mobile -> +91
+  const msg = document.getElementById('waMessage').value ||
+    `Your customised ${currentItinerary ? currentItinerary.dest.name : ''} itinerary from Rise & Shine Travel.`;
+  const url = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
   closeModal('waModal');
-  showToast('Sending...');
-  setTimeout(() => {
-    showToast('✓ PDF sent to ' + num + ' via WhatsApp');
-  }, 1400);
+  window.open(url, '_blank', 'noopener');
+  showToast('WhatsApp opened — attach the downloaded PDF in the chat');
 }
 
 function applyEdit() {

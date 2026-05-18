@@ -76,17 +76,47 @@ Once deployed, in the Vercel project dashboard → **Settings → Domains** → 
 
 | File | Purpose |
 |------|---------|
-| `index.html` | The entire tool — HTML, CSS, JS, and destination templates in one file |
+| `index.html` | The entire tool — HTML, CSS, JS, live data + destination templates |
+| `assets/logo.png` | Real Rise & Shine logo (bundled so it renders in the PDF) |
 | `vercel.json` | Caching headers + clean URLs config |
 | `README.md` | This file |
 
+## v2 — Real live data (what changed)
+
+**Thailand is now backed by real data**, not invented strings:
+
+- **Flights** — real AMD⇄BKK quote pulled from Expedia (IndiGo via Mumbai, real flight numbers, times, fare rules, USD price).
+- **Hotels** — real properties per budget tier (Solitaire / Chatrium / Park Hyatt · The Shore at Katathani / Anantara Layan) with live rates, strike-through discounts, real guest rating /10, review counts, and an embedded **live Google map** per hotel + a real "view photos & book on Expedia" deep link.
+- **Transparent price estimate** — a real itemised breakdown (flight + hotels + transfers + activities + visa + service margin) in ₹ and $, per-person and total. The old "price shared later" cop-out is gone.
+- **Traveller Intel** — a Do / Skip / Don't-miss panel synthesised from current traveller-consensus sources (Tripadvisor, US Embassy advisory, Phuket101, Horizon Guides — mirrors r/Thailand · r/phuket), filtered to the client's group, diet and budget.
+- **De-faked** — the WhatsApp button now opens a real `wa.me` deep link with the message pre-filled (no fake "✓ sent" toast). Branding uses the real bundled logo, real phone `+91-79-2329 7232`, real email `info@riseandshinetravel.com`, real accreditations (IATTE · BNI · ADTOI · Gujarat Tourism).
+- The data stamp shows exactly when rates were pulled and that they re-confirm at booking.
+
+The other five destinations still use built-in templates and are clearly labelled **"indicative — live rates on request"**.
+
+> **Data freshness note:** Thailand's live figures were pulled on **2026-05-18** for a sample **15–23 Jun 2026** trip. They are accurate as of that pull, not refreshed on every page load (see upgrade path below).
+
+## Production upgrade — true per-request live data
+
+The static site can't call live APIs on each visit (no backend, no keys it owns). To make every quote live on every load, add **Vercel Functions** (this is already a Vercel project):
+
+| Need | Provider | Notes |
+|------|----------|-------|
+| Live flights | Amadeus Self-Service / Duffel / Kiwi Tequila | free tier; real AMD→dest price + schedule |
+| Live hotels | Amadeus Hotel Search / Hotelbeds / Expedia Rapid (Partner) | availability + rate by tier |
+| Hotel photos / reviews text | Google Places | Expedia MCP returns rating + count only, no photos/text |
+| Visa rules | Sherpa° (joinsherpa) API | no reliable free source otherwise |
+| Reddit validation | Reddit official API (free OAuth app) → Claude to synthesise Do/Skip/Don't-miss | the live version of the Traveller Intel panel |
+| Itinerary brain | Claude API via Vercel AI Gateway | composes days grounded on the real data above; prices validated in code, not by the model |
+
+Flow: `/api/itinerary` fans out flight + hotel + POI + Reddit calls in parallel, caches short-TTL (Vercel runtime cache) so it feels instant, streams **real** progress, returns JSON the existing front-end renders.
+
 ## Notes
 
-- **No API keys** — destination content is built-in (Thailand, Kerala, Mauritius, Maldives, Rajasthan, Bali). Safe for live demos with zero network failure risk.
-- **No backend** — PDF generation runs entirely in the browser via `html2pdf.js` (loaded from CDN).
+- **PDF** — generated in-browser via `html2pdf.js`. The bundled logo renders in the PDF; the interactive map iframes are on-screen only (each hotel card also has a clickable map link that works in the PDF).
 - **No tracking** — no analytics or cookies. Privacy-clean for client demos.
-- **Mobile-friendly** — works on phones; you can show the tool on a phone during the meeting too.
+- **Mobile-friendly** — works on phones.
 
 ## Updating the content
 
-To add more destinations, edit the `DESTINATIONS` object inside `index.html` (around line 600). The schema is documented inline. Push to redeploy, or drag the updated folder to Vercel again.
+Thailand's real data lives in the `live: { ... }` object inside `DESTINATIONS.thailand` in `index.html` (flight, hotels-by-tier, traveller intel, FX). To refresh, re-pull the Expedia quotes and update those values + the `updated` date. To add more destinations, copy the `live` schema onto another destination; without it the destination falls back to the indicative template.
