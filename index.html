@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rise & Shine Travel — AI Itinerary Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #0d6e6e;
+    --primary-dark: #084e4e;
+    --primary-light: #e8f5f4;
+    --accent: #e89212;
+    --accent-light: #fef3e2;
+    --text: #1a2b2b;
+    --text-muted: #5a6b6b;
+    --border: #e0e8e8;
+    --bg: #f6f9f9;
+    --white: #ffffff;
+    --success: #22a06b;
+    --danger: #d23f3f;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  /* ── Header ── */
+  header.app-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 18px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: white; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: var(--primary); font-size: 20px;
+    letter-spacing: -1px;
+  }
+  .brand-text h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .brand-text p { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+  .header-meta { font-size: 13px; opacity: 0.85; text-align: right; }
+  .header-meta .tool-tag {
+    display: inline-block; background: rgba(255,255,255,0.18);
+    padding: 4px 10px; border-radius: 20px; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  /* ── Main grid ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 80px);
+  }
+  .form-panel {
+    background: white;
+    padding: 28px 28px 40px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+  }
+  .preview-panel {
+    background: var(--bg);
+    padding: 28px;
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+  }
+
+  /* ── Form ── */
+  .form-section-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .form-section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px; font-family: inherit;
+    background: white;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13,110,110,0.08);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .checkbox-group input { width: auto; }
+  .checkbox-group label { margin-bottom: 0; font-weight: 500; }
+
+  .interest-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 6px 12px; background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 20px; font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+    user-select: none;
+  }
+  .chip.selected {
+    background: var(--primary); color: white; border-color: var(--primary);
+  }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+  button {
+    cursor: pointer; font-family: inherit;
+    border: none; border-radius: 8px;
+    font-weight: 600; transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--primary); color: white;
+    padding: 14px 20px; font-size: 14px;
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-secondary {
+    background: white; color: var(--primary);
+    border: 1.5px solid var(--primary);
+    padding: 10px 16px; font-size: 13px;
+  }
+  .btn-secondary:hover { background: var(--primary-light); }
+  .btn-ghost {
+    background: transparent; color: var(--text-muted);
+    padding: 8px 12px; font-size: 12px; font-weight: 500;
+  }
+  .btn-ghost:hover { color: var(--primary); }
+
+  .demo-load {
+    background: var(--accent-light); border: 1.5px dashed var(--accent);
+    padding: 12px 14px; border-radius: 8px;
+    margin-bottom: 24px; cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .demo-load:hover { background: #fce7c1; }
+  .demo-load .icon {
+    width: 28px; height: 28px;
+    background: var(--accent); color: white;
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px;
+  }
+  .demo-load .text { flex: 1; }
+  .demo-load .text strong { display: block; font-size: 13px; color: var(--text); }
+  .demo-load .text span { font-size: 11px; color: var(--text-muted); }
+
+  /* ── Empty state ── */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; min-height: 500px;
+    color: var(--text-muted); text-align: center;
+    padding: 40px;
+  }
+  .empty-state .icon-large {
+    width: 80px; height: 80px;
+    background: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(13,110,110,0.08);
+  }
+  .empty-state h2 { font-size: 20px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; max-width: 360px; }
+
+  /* ── Progress ── */
+  .progress-card {
+    background: white; border-radius: 12px;
+    padding: 32px; max-width: 520px; margin: 40px auto;
+    box-shadow: 0 4px 20px rgba(13,110,110,0.08);
+  }
+  .progress-card h2 {
+    font-size: 18px; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .spinner {
+    width: 22px; height: 22px;
+    border: 3px solid var(--primary-light);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-card p.sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .progress-bar {
+    height: 8px; background: var(--primary-light);
+    border-radius: 4px; overflow: hidden; margin-bottom: 20px;
+  }
+  .progress-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent));
+    transition: width 0.5s ease;
+    border-radius: 4px;
+  }
+  .progress-steps { display: flex; flex-direction: column; gap: 10px; }
+  .progress-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--bg); font-size: 13px;
+    opacity: 0.5; transition: all 0.3s;
+  }
+  .progress-step.active { opacity: 1; background: var(--primary-light); }
+  .progress-step.done { opacity: 1; background: #e7f7ef; color: var(--success); }
+  .progress-step .step-icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: white; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .progress-step.active .step-icon { border-color: var(--primary); color: var(--primary); }
+  .progress-step.done .step-icon { background: var(--success); border-color: var(--success); color: white; }
+  .progress-step.done .step-icon::before { content: '✓'; }
+  .progress-step.done .step-text { color: var(--text); }
+
+  /* ── Preview / Itinerary ── */
+  .preview-toolbar {
+    background: white; border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .preview-toolbar .left { display: flex; align-items: center; gap: 12px; }
+  .badge-ready {
+    background: #e7f7ef; color: var(--success);
+    padding: 4px 10px; border-radius: 12px; font-size: 11px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .preview-toolbar .actions { display: flex; gap: 8px; }
+  .btn-action {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600;
+    border-radius: 8px; cursor: pointer; border: 1.5px solid transparent;
+    transition: all 0.15s;
+  }
+  .btn-download { background: var(--primary); color: white; }
+  .btn-download:hover { background: var(--primary-dark); }
+  .btn-whatsapp { background: #25D366; color: white; }
+  .btn-whatsapp:hover { background: #1ea855; }
+  .btn-edit { background: white; color: var(--text); border-color: var(--border); }
+  .btn-edit:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* ── PDF preview document ── */
+  .doc-preview {
+    background: white; border-radius: 12px;
+    padding: 0; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(13,110,110,0.10);
+  }
+  /* This whole #pdfRoot section is what gets exported */
+  .pdf-root { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1a2b2b; }
+  .pdf-cover {
+    background: linear-gradient(135deg, #0d6e6e 0%, #084e4e 100%);
+    color: white; padding: 60px 50px 50px;
+    position: relative;
+  }
+  .pdf-cover-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 50px; }
+  .pdf-cover-brand .mark {
+    width: 38px; height: 38px; background: white; color: #0d6e6e;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px;
+  }
+  .pdf-cover-brand h3 { font-size: 16px; font-weight: 700; }
+  .pdf-cover-brand p { font-size: 11px; opacity: 0.85; }
+  .pdf-cover-tag {
+    display: inline-block; padding: 6px 14px;
+    background: rgba(255,255,255,0.15); border-radius: 16px;
+    font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    font-weight: 600; margin-bottom: 18px;
+  }
+  .pdf-cover h1 {
+    font-size: 40px; font-weight: 800; line-height: 1.1;
+    margin-bottom: 14px; letter-spacing: -1px;
+  }
+  .pdf-cover .subtitle {
+    font-size: 18px; opacity: 0.92; margin-bottom: 40px; font-weight: 300;
+  }
+  .pdf-cover-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; max-width: 460px;
+  }
+  .pdf-cover-item {
+    background: rgba(255,255,255,0.10);
+    padding: 14px 16px; border-radius: 10px;
+    border-left: 3px solid #e89212;
+  }
+  .pdf-cover-item .lbl { font-size: 10px; opacity: 0.75; text-transform: uppercase; letter-spacing: 1px; }
+  .pdf-cover-item .val { font-size: 15px; font-weight: 600; margin-top: 4px; }
+
+  .pdf-page {
+    padding: 36px 44px;
+    page-break-after: always;
+    position: relative;
+    min-height: 950px;
+  }
+  .pdf-page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 14px; margin-bottom: 24px;
+    border-bottom: 2px solid #0d6e6e;
+  }
+  .pdf-page-header .left { display: flex; align-items: center; gap: 10px; }
+  .pdf-page-header .mark {
+    width: 28px; height: 28px; background: #0d6e6e; color: white;
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+  }
+  .pdf-page-header .name { font-weight: 700; font-size: 13px; color: #0d6e6e; }
+  .pdf-page-header .page-name { font-size: 11px; color: #5a6b6b; text-transform: uppercase; letter-spacing: 1px; }
+
+  .pdf-section-title {
+    font-size: 22px; font-weight: 800; color: #0d6e6e;
+    margin-bottom: 6px; letter-spacing: -0.5px;
+  }
+  .pdf-section-sub {
+    font-size: 13px; color: #5a6b6b; margin-bottom: 22px;
+  }
+  .pdf-greeting {
+    background: #fef3e2; border-left: 4px solid #e89212;
+    padding: 18px 22px; border-radius: 0 10px 10px 0;
+    margin-bottom: 26px;
+  }
+  .pdf-greeting p { font-size: 14px; color: #1a2b2b; line-height: 1.6; }
+  .pdf-greeting .from { font-size: 12px; color: #5a6b6b; margin-top: 8px; font-style: italic; }
+
+  .trip-summary-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 14px; margin-bottom: 28px;
+  }
+  .ts-card {
+    background: #f6f9f9; padding: 14px;
+    border-radius: 10px; border-top: 3px solid #0d6e6e;
+  }
+  .ts-card .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #5a6b6b; margin-bottom: 4px; }
+  .ts-card .val { font-size: 14px; font-weight: 700; color: #1a2b2b; }
+
+  .day-card {
+    border: 1px solid #e0e8e8;
+    border-radius: 12px; overflow: hidden;
+    margin-bottom: 16px; background: white;
+    page-break-inside: avoid;
+  }
+  .day-card-header {
+    background: linear-gradient(90deg, #0d6e6e 0%, #126e6e 100%);
+    color: white; padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .day-card-header .day-num {
+    background: #e89212; color: white;
+    padding: 3px 10px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .day-card-header .day-title { font-size: 16px; font-weight: 700; }
+  .day-card-header .day-date { font-size: 12px; opacity: 0.85; }
+  .day-card-body { padding: 16px 20px; }
+  .day-slot {
+    display: flex; gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px dashed #e0e8e8;
+  }
+  .day-slot:last-child { border-bottom: none; }
+  .day-slot .slot-label {
+    width: 80px; flex-shrink: 0;
+    font-size: 11px; font-weight: 700; color: #0d6e6e;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding-top: 2px;
+  }
+  .day-slot .slot-content { flex: 1; font-size: 13px; color: #1a2b2b; line-height: 1.55; }
+  .day-slot .slot-content strong { color: #0d6e6e; }
+
+  .hotel-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .hotel-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px; background: #f6f9f9;
+    border-radius: 10px; border-left: 3px solid #0d6e6e;
+  }
+  .hotel-row .stars { color: #e89212; font-size: 14px; letter-spacing: 1px; min-width: 70px; }
+  .hotel-row .info { flex: 1; }
+  .hotel-row .info .name { font-weight: 700; font-size: 14px; }
+  .hotel-row .info .loc { font-size: 11px; color: #5a6b6b; margin-top: 2px; }
+  .hotel-row .nights { font-size: 12px; color: #5a6b6b; background: white; padding: 4px 10px; border-radius: 12px; }
+
+  .visa-box {
+    background: #fef3e2; border-radius: 10px;
+    padding: 18px 22px; margin-bottom: 20px;
+  }
+  .visa-box .title { font-weight: 700; font-size: 14px; color: #a35d00; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .visa-box .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .visa-box .row strong { color: #1a2b2b; }
+  .visa-box .row span { color: #5a6b6b; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .info-card {
+    background: white; border: 1px solid #e0e8e8;
+    padding: 14px 16px; border-radius: 10px;
+  }
+  .info-card .title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #0d6e6e; font-weight: 700; margin-bottom: 8px; }
+  .info-card p { font-size: 12.5px; line-height: 1.6; color: #1a2b2b; }
+
+  .pdf-footer {
+    background: #f6f9f9;
+    padding: 18px 44px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid #e0e8e8;
+    font-size: 11px; color: #5a6b6b;
+  }
+  .pdf-footer .left { display: flex; align-items: center; gap: 14px; }
+  .iata-badge {
+    background: #0d6e6e; color: white;
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  }
+  .pdf-footer-contact { text-align: right; }
+  .pdf-footer-contact div { font-weight: 600; color: #1a2b2b; }
+
+  /* ── Modals ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(10,30,30,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: white; border-radius: 14px;
+    padding: 28px; max-width: 460px; width: 90%;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    transform: scale(0.96); transition: transform 0.2s;
+  }
+  .modal-overlay.show .modal { transform: scale(1); }
+  .modal h3 { font-size: 18px; margin-bottom: 6px; }
+  .modal p.sub { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+  .modal .btn-row { margin-top: 18px; }
+  .modal .btn-row button { flex: 1; padding: 11px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #1a2b2b; color: white;
+    padding: 14px 20px; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    z-index: 200;
+    transform: translateY(20px); opacity: 0;
+    transition: all 0.25s;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast .icon {
+    width: 24px; height: 24px; background: var(--success);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 13px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c8d4d4; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a5b5b5; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="logo-mark">R&amp;S</div>
+    <div class="brand-text">
+      <h1>Rise &amp; Shine Travel</h1>
+      <p>AI Itinerary Generator · Ahmedabad</p>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div class="tool-tag">Demo 03 · Live Tool</div>
+    <div>Internal staff tool · v1.0</div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ─────────────── FORM PANEL ─────────────── -->
+  <aside class="form-panel">
+
+    <div class="demo-load" onclick="loadDemoScenario()">
+      <div class="icon">★</div>
+      <div class="text">
+        <strong>Load Demo Scenario</strong>
+        <span>Rajesh family — Thailand 7N · for the live demo</span>
+      </div>
+    </div>
+
+    <div class="form-section-title">Client Details</div>
+    <div class="form-group">
+      <label>Client Name</label>
+      <input type="text" id="clientName" placeholder="e.g. Rajesh &amp; Family">
+    </div>
+    <div class="form-group">
+      <label>Contact (WhatsApp)</label>
+      <input type="text" id="clientPhone" placeholder="+91 98XXX XXXXX">
+    </div>
+
+    <div class="form-section-title" style="margin-top:24px">Trip Details</div>
+    <div class="form-group">
+      <label>Destination</label>
+      <select id="destination">
+        <option value="">— Select —</option>
+        <option value="thailand">Thailand — Bangkok + Phuket</option>
+        <option value="kerala">Kerala — Munnar + Alleppey + Kochi</option>
+        <option value="mauritius">Mauritius — Beach &amp; Lagoons</option>
+        <option value="maldives">Maldives — Overwater Villas</option>
+        <option value="rajasthan">Rajasthan — Jaipur + Udaipur + Jaisalmer</option>
+        <option value="bali">Bali — Ubud + Seminyak + Nusa Dua</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Duration</label>
+        <select id="duration">
+          <option value="5">5 Nights / 6 Days</option>
+          <option value="6">6 Nights / 7 Days</option>
+          <option value="7" selected>7 Nights / 8 Days</option>
+          <option value="8">8 Nights / 9 Days</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Budget Tier</label>
+        <select id="budget">
+          <option value="3">Budget (3★)</option>
+          <option value="4" selected>Mid-range (4★)</option>
+          <option value="5">Luxury (5★)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="form-group">
+        <label>End Date</label>
+        <input type="date" id="endDate">
+      </div>
+    </div>
+
+    <div class="form-section-title" style="margin-top:24px">Group &amp; Preferences</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Adults</label>
+        <input type="number" id="adults" value="2" min="1" max="20">
+      </div>
+      <div class="form-group">
+        <label>Children</label>
+        <input type="number" id="children" value="0" min="0" max="10">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Dietary Preference</label>
+      <select id="diet">
+        <option value="veg">Vegetarian (Gujarati-friendly highlighted)</option>
+        <option value="jain">Jain</option>
+        <option value="non-veg">Non-Vegetarian</option>
+        <option value="mixed">Mixed</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Key Interests <span style="color:var(--text-muted);font-weight:400">(tap to select)</span></label>
+      <div class="interest-chips" id="interestChips">
+        <span class="chip" data-int="Beach">🏖 Beach</span>
+        <span class="chip" data-int="Sightseeing">🏛 Sightseeing</span>
+        <span class="chip" data-int="Shopping">🛍 Shopping</span>
+        <span class="chip" data-int="Family Activities">👨‍👩‍👧 Family</span>
+        <span class="chip" data-int="Adventure">🚣 Adventure</span>
+        <span class="chip" data-int="Wildlife">🐘 Wildlife</span>
+        <span class="chip" data-int="Wellness">🧘 Wellness</span>
+        <span class="chip" data-int="Nightlife">🌃 Nightlife</span>
+        <span class="chip" data-int="Culture">🎭 Culture</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="visa">
+        <label for="visa">Visa assistance required</label>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="generateBtn" onclick="generateItinerary()" style="margin-top:24px">
+      ⚡ Generate Itinerary (60 sec)
+    </button>
+    <button class="btn-ghost" style="width:100%;margin-top:6px" onclick="resetForm()">Reset form</button>
+  </aside>
+
+  <!-- ─────────────── PREVIEW PANEL ─────────────── -->
+  <main class="preview-panel" id="previewPanel">
+    <div class="empty-state" id="emptyState">
+      <div class="icon-large">📋</div>
+      <h2>No itinerary yet</h2>
+      <p>Fill in the client details on the left and click <strong>Generate</strong>. A complete branded itinerary will appear here in under 60 seconds — ready to send.</p>
+    </div>
+  </main>
+</div>
+
+<!-- ─────────────── MODALS ─────────────── -->
+<div class="modal-overlay" id="waModal">
+  <div class="modal">
+    <h3>📱 Send via WhatsApp</h3>
+    <p class="sub">The branded PDF will be sent directly to the client's WhatsApp.</p>
+    <div class="form-group">
+      <label>Send to WhatsApp number</label>
+      <input type="text" id="waNumber" placeholder="+91 98XXX XXXXX">
+    </div>
+    <div class="form-group">
+      <label>Message (optional)</label>
+      <textarea id="waMessage" rows="3" placeholder="Dear Rajesh, please find attached your customised Thailand itinerary..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="closeModal('waModal')">Cancel</button>
+      <button class="btn-primary" style="background:#25D366" onclick="sendWhatsApp()">Send Now</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Edit a Day</h3>
+    <p class="sub">Swap a day's activity. Only that day will regenerate — rest stays untouched.</p>
+    <div class="form-group">
+      <label>Which day?</label>
+      <select id="editDay"></select>
+    </div>
+    <div class="form-group">
+      <label>What would you like instead?</label>
+      <textarea id="editText" rows="3" placeholder="e.g. Swap the Phi Phi Island tour for a Thai cooking class with a market visit in the morning"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn-primary" onclick="applyEdit()">Regenerate this day</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <div class="icon">✓</div>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+//  DESTINATION TEMPLATES — Real, polished content for the demo
+// ════════════════════════════════════════════════════════════════════
+const DESTINATIONS = {
+  thailand: {
+    name: 'Thailand',
+    title: 'Thailand — Bangkok &amp; Phuket',
+    tagline: 'Beaches, Buddhas, and Bangkok by night',
+    code: 'BKK',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'IndiGo 6E-78 · AMD 06:20 → BKK 12:45 (via DEL)',
+    returnFlight: 'IndiGo 6E-77 · HKT 23:55 → AMD 05:40 (next day)',
+    visa: {
+      type: 'Thailand Tourist Visa (eVisa)',
+      validity: '60 days from issue',
+      processing: '5–7 working days',
+      fee: '₹2,500 per person (incl. service)',
+      docs: 'Passport (6mo validity), 2 photos, confirmed tickets &amp; hotel, bank statement (last 3 months)'
+    },
+    hotels: {
+      3: [
+        { name: 'ibis Bangkok Sukhumvit 4', loc: 'Bangkok · Sukhumvit', stars: 3, nights: 3 },
+        { name: 'The ASHLEE Plaza Patong', loc: 'Phuket · Patong Beach', stars: 3, nights: 4 }
+      ],
+      4: [
+        { name: 'Novotel Bangkok Sukhumvit 20', loc: 'Bangkok · Sukhumvit', stars: 4, nights: 3 },
+        { name: 'Holiday Inn Resort Phuket', loc: 'Phuket · Patong Beach', stars: 4, nights: 4 }
+      ],
+      5: [
+        { name: 'The Athenee Hotel, a Luxury Collection Hotel', loc: 'Bangkok · Wireless Road', stars: 5, nights: 3 },
+        { name: 'The Shore at Katathani', loc: 'Phuket · Kata Noi Beach', stars: 5, nights: 4 }
+      ]
+    },
+    days: [
+      { title: 'Arrival in Bangkok', date: null,
+        morning: 'Depart Ahmedabad (AMD) <strong>06:20</strong> on IndiGo 6E-78 → arrive Bangkok Suvarnabhumi <strong>12:45</strong>. Private AC transfer to hotel.',
+        afternoon: 'Hotel check-in &amp; rest. <strong>Asiatique The Riverfront</strong> — open-air market by the Chao Phraya River. Shopping, Ferris wheel, street food walk.',
+        evening: 'Dinner at <strong>Saras Indian Vegetarian Restaurant</strong> (Sukhumvit) — full Gujarati/South Indian menu. Early night.'
+      },
+      { title: 'Bangkok City Tour', date: null,
+        morning: 'Half-day city tour <strong>(9 AM – 12 PM)</strong>: Grand Palace + Wat Phra Kaew (Temple of the Emerald Buddha). Modest dress required.',
+        afternoon: '<strong>Wat Arun</strong> (Temple of Dawn) by long-tail boat. Chao Phraya river cruise. Lunch break at Indian restaurant in Phra Nakhon.',
+        evening: '<strong>IconSiam Mall</strong> — riverside shopping &amp; rooftop dinner with skyline views. Sky-train back to hotel.'
+      },
+      { title: 'Floating Market + Safari World', date: null,
+        morning: '<strong>Damnoen Saduak Floating Market</strong> (depart 7 AM). Boat ride through traditional canals; souvenirs &amp; tropical fruits.',
+        afternoon: '<strong>Safari World &amp; Marine Park</strong> — jungle drive, dolphin show (great for children). Bird show at 2 PM.',
+        evening: 'Return to hotel. Dinner at hotel. Early check-out briefing for next day flight.'
+      },
+      { title: 'Fly Bangkok → Phuket', date: null,
+        morning: 'Morning flight <strong>Bangkok (BKK) → Phuket (HKT) 09:00 – 10:15</strong>. Transfer to Patong Beach.',
+        afternoon: 'Check-in to resort. <strong>Patong Beach</strong> — sun, sea, and beach loungers. Optional jet-ski / parasailing.',
+        evening: '<strong>Promthep Cape</strong> — best sunset point in Phuket. Dinner at <strong>Navrang Mahal</strong> (Indian vegetarian restaurant in Patong).'
+      },
+      { title: 'Phi Phi Islands Day Tour', date: null,
+        morning: '<strong>Full-day Phi Phi Islands tour by speedboat</strong> — snorkelling at Maya Bay, swim through the Viking Cave, lunch on Phi Phi Don.',
+        afternoon: 'Continue to Bamboo Island — white sand &amp; turquoise water. Snorkelling equipment included. Return by 5 PM.',
+        evening: 'Free time at hotel pool / Patong night market shopping. Optional Thai massage at hotel spa.'
+      },
+      { title: 'Phuket Land Tour', date: null,
+        morning: '<strong>Big Buddha</strong> (45-metre statue, panoramic views) → <strong>Wat Chalong</strong> (Phuket\'s most revered temple).',
+        afternoon: '<strong>Old Phuket Town</strong> — Sino-Portuguese architecture, street art, boutique cafés. Lunch at <strong>Suay Restaurant</strong>.',
+        evening: 'Phantasea Cultural Show (optional, ₹3,500 add-on) OR free evening at hotel. Light dinner.'
+      },
+      { title: 'Leisure + Departure Prep', date: null,
+        morning: '<strong>Leisure morning</strong> at the resort pool. Optional spa session. Last-minute shopping at <strong>Jungceylon Mall</strong>.',
+        afternoon: 'Late check-out arranged (6 PM). Lunch at hotel. Pack &amp; rest.',
+        evening: 'Transfer to Phuket airport for evening flight. <strong>HKT 23:55 → AMD 05:40</strong> next day.'
+      },
+      { title: 'Arrive Ahmedabad', date: null,
+        morning: 'Arrive AMD <strong>early morning</strong>. Pre-arranged AC transfer home.',
+        afternoon: 'Rise &amp; Shine follow-up call within 24 hours for feedback &amp; review request.',
+        evening: '<strong>Welcome home!</strong> We hope you had a wonderful time. Your dedicated travel expert will share digital photos &amp; trip memories within 48 hours.'
+      }
+    ]
+  },
+
+  kerala: {
+    name: 'Kerala',
+    title: 'Kerala — God\'s Own Country',
+    tagline: 'Hill stations, houseboats, and Cochin\'s old soul',
+    code: 'COK',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'IndiGo 6E-355 · AMD 06:45 → COK 09:55 (direct)',
+    returnFlight: 'IndiGo 6E-356 · COK 10:30 → AMD 13:45 (direct)',
+    visa: { type: 'Domestic — No visa required', validity: 'N/A', processing: 'N/A', fee: 'N/A',
+      docs: 'Govt photo ID for all travellers (Aadhaar / PAN / Passport) required at hotel check-in' },
+    hotels: {
+      3: [
+        { name: 'Misty Mountain Resort', loc: 'Munnar', stars: 3, nights: 2 },
+        { name: 'Lake Palace Backwater Resort', loc: 'Alleppey · Houseboat', stars: 3, nights: 2 },
+        { name: 'Old Harbour Hotel', loc: 'Fort Kochi', stars: 3, nights: 3 }
+      ],
+      4: [
+        { name: 'The Tall Trees Munnar', loc: 'Munnar · Tea Country', stars: 4, nights: 2 },
+        { name: 'Kerala Houseboat Premium · Spice Routes', loc: 'Alleppey Backwaters', stars: 4, nights: 2 },
+        { name: 'Brunton Boatyard', loc: 'Fort Kochi · Heritage', stars: 4, nights: 3 }
+      ],
+      5: [
+        { name: 'The Windermere Estate', loc: 'Munnar · 60-acre plantation', stars: 5, nights: 2 },
+        { name: 'Kumarakom Lake Resort (Heritage Villa)', loc: 'Kumarakom · Vembanad Lake', stars: 5, nights: 2 },
+        { name: 'Taj Malabar Resort &amp; Spa', loc: 'Willingdon Island, Kochi', stars: 5, nights: 3 }
+      ]
+    },
+    days: [
+      { title: 'Arrival in Cochin → Drive to Munnar', date: null,
+        morning: 'Arrive Cochin Airport (COK) <strong>09:55</strong>. Met by Rise &amp; Shine representative. Refreshments.',
+        afternoon: 'Scenic <strong>4-hour drive to Munnar</strong> via Cheeyappara &amp; Valara waterfalls. Lunch en route at <strong>Saravana Bhavan, Adimali</strong> (pure veg).',
+        evening: 'Check-in to hill resort. Evening tea on the verandah overlooking the tea estates. Welcome dinner at resort.'
+      },
+      { title: 'Munnar Sightseeing', date: null,
+        morning: '<strong>Eravikulam National Park</strong> (Nilgiri Tahr habitat) → <strong>Mattupetty Dam</strong> (boating &amp; viewpoint).',
+        afternoon: '<strong>Tea Museum &amp; Factory Visit</strong> — see how Kerala tea is processed. Tea-tasting included.',
+        evening: '<strong>Kalari martial-arts show</strong> (optional, ₹600 pp). Dinner at resort with traditional Kerala thali on banana leaf.'
+      },
+      { title: 'Drive Munnar → Alleppey Houseboat', date: null,
+        morning: 'Drive to <strong>Alleppey (4 hours)</strong>. Stop at Kuravan-Kuratti viewpoint &amp; spice gardens.',
+        afternoon: 'Board your <strong>premium houseboat at 12 noon</strong>. Welcome drink. Cruise the backwaters past coconut groves &amp; village life.',
+        evening: 'Sunset on the deck. <strong>Onboard Kerala chef</strong> prepares fresh Sadhya (traditional veg feast). Overnight anchored in tranquil backwaters.'
+      },
+      { title: 'Houseboat Cruise → Cochin', date: null,
+        morning: 'Sunrise on deck. Breakfast of appam &amp; vegetable stew. Continue cruising until <strong>9:30 AM check-out</strong>.',
+        afternoon: 'Drive to <strong>Fort Kochi (1.5 hours)</strong>. Check-in to heritage hotel. Lunch at <strong>Kashi Art Café</strong>.',
+        evening: '<strong>Chinese Fishing Nets at sunset</strong> · St. Francis Church · stroll through Princess Street.'
+      },
+      { title: 'Kochi Cultural Day', date: null,
+        morning: '<strong>Jew Town &amp; Mattancherry Palace</strong> — antique shops, Paradesi Synagogue, spice market.',
+        afternoon: 'Free time for shopping at <strong>Lulu Mall</strong> (one of India\'s largest). Lunch at <strong>Saravana Bhavan</strong>.',
+        evening: '<strong>Kathakali dance performance</strong> at Kerala Kathakali Centre — arrive 5 PM for make-up demonstration; show at 6 PM.'
+      },
+      { title: 'Leisure + Departure', date: null,
+        morning: 'Leisure morning. Optional <strong>Ayurvedic massage</strong> at hotel spa (₹2,500 pp, 60 min).',
+        afternoon: 'Late check-out. Lunch at hotel.',
+        evening: 'Transfer to Cochin airport. Flight <strong>COK 10:30 → AMD 13:45</strong> (or next available based on date).'
+      },
+      { title: 'Arrive Ahmedabad', date: null,
+        morning: 'Arrive AMD. Pre-arranged transfer home.',
+        afternoon: 'Rise &amp; Shine follow-up call within 24 hours.',
+        evening: 'Welcome home! Your trip photo album will be shared within 48 hours.'
+      }
+    ]
+  },
+
+  mauritius: {
+    name: 'Mauritius',
+    title: 'Mauritius — Indian Ocean Paradise',
+    tagline: 'White-sand beaches, lagoons, and volcanic peaks',
+    code: 'MRU',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'Air Mauritius via Mumbai · AMD 07:30 → BOM 09:00 → MRU 18:45',
+    returnFlight: 'Air Mauritius · MRU 21:00 → BOM 03:15 → AMD 07:30',
+    visa: { type: 'Mauritius Tourist Visa on Arrival', validity: '60 days', processing: 'On arrival (free)', fee: 'Free for Indian passport holders',
+      docs: 'Passport (6 mo validity), return ticket, hotel confirmation, USD 100/day proof of funds' },
+    hotels: {
+      3: [{ name: 'Tarisa Resort &amp; Spa', loc: 'Mont Choisy Beach', stars: 3, nights: 7 }],
+      4: [{ name: 'Veranda Pointe aux Biches', loc: 'North Coast · Beachfront', stars: 4, nights: 7 }],
+      5: [{ name: 'LUX* Belle Mare', loc: 'East Coast · Private Lagoon', stars: 5, nights: 7 }]
+    },
+    days: [
+      { title: 'Arrival in Mauritius', date: null,
+        morning: 'Depart Ahmedabad early morning. Arrive Sir Seewoosagur Ramgoolam Intl Airport (MRU) by evening.',
+        afternoon: 'Private transfer to resort (1 hour). VIP welcome &amp; check-in.',
+        evening: 'Welcome dinner at resort. Indian veg menu on request. Early night to recover from travel.'
+      },
+      { title: 'North Island Tour', date: null,
+        morning: 'Visit <strong>Port Louis Capital</strong> — Caudan Waterfront, Central Market, Champ de Mars.',
+        afternoon: '<strong>Pamplemousses Botanical Garden</strong> — giant water lilies, talipot palms. Lunch at Le Fangourin.',
+        evening: 'Return to resort. Beach sunset. Dinner at <strong>Bombay Brasserie</strong> (Indian vegetarian, in Trou aux Biches).'
+      },
+      { title: 'Île aux Cerfs Speedboat Day', date: null,
+        morning: 'Speedboat to <strong>Île aux Cerfs</strong> — postcard island with turquoise lagoons.',
+        afternoon: '<strong>Lunch BBQ on the island</strong> (veg options included). Glass-bottom boat ride over coral.',
+        evening: 'Return to resort. Sunset cocktails by the pool. Light dinner.'
+      },
+      { title: 'South Island &amp; Chamarel', date: null,
+        morning: '<strong>Chamarel Seven Coloured Earths</strong> &amp; Chamarel Waterfall (Mauritius\'s tallest).',
+        afternoon: '<strong>Black River Gorges National Park</strong> · viewpoint at Plaine Champagne. Lunch at <strong>Le Chamarel Restaurant</strong> (panoramic).',
+        evening: '<strong>Grand Bassin (Ganga Talao)</strong> — sacred Hindu lake with Shiva statue. Aarti at sunset.'
+      },
+      { title: 'Underwater &amp; Beach Day', date: null,
+        morning: '<strong>Blue Safari submarine ride</strong> OR snorkelling at Blue Bay Marine Park.',
+        afternoon: 'Free beach time. Catamaran cruise option (₹4,500 pp add-on).',
+        evening: 'Dinner at <strong>The Beach Shack</strong> — sea-facing veg menu available.'
+      },
+      { title: 'Leisure Day at Resort', date: null,
+        morning: 'Spa morning at resort. Couples massage or Ayurvedic treatment.',
+        afternoon: 'Pool day. Optional <strong>parasailing / glass-bottom kayak / water-skiing</strong> (included in resort package).',
+        evening: 'Final dinner — themed Indian Ocean cuisine night at resort.'
+      },
+      { title: 'Shopping + Sunset Cruise', date: null,
+        morning: '<strong>Bagatelle Mall</strong> for last-minute shopping. Free time.',
+        afternoon: 'Lunch at resort. Pack.',
+        evening: '<strong>Sunset catamaran cruise</strong> with live music &amp; veg snacks. Return to resort.'
+      },
+      { title: 'Departure', date: null,
+        morning: 'Late check-out arranged. Beach morning.',
+        afternoon: 'Transfer to airport. Flight <strong>MRU 21:00 → AMD 07:30</strong> next day (via Mumbai).',
+        evening: '<strong>Welcome home!</strong> Follow-up call within 24 hours.'
+      }
+    ]
+  },
+
+  maldives: {
+    name: 'Maldives',
+    title: 'Maldives — Overwater Villas &amp; Coral Reefs',
+    tagline: 'Pure indulgence: turquoise lagoons, private bungalows',
+    code: 'MLE',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'IndiGo via Mumbai · AMD 06:00 → BOM 07:30 → MLE 11:20',
+    returnFlight: 'IndiGo · MLE 23:00 → BOM 03:55 → AMD 08:15',
+    visa: { type: 'Maldives Visa on Arrival', validity: '30 days', processing: 'Stamped on arrival', fee: 'Free for Indian passport holders',
+      docs: 'Passport (6mo validity), confirmed hotel booking, return ticket, USD 100/day proof' },
+    hotels: {
+      3: [{ name: 'Holiday Inn Resort Kandooma Maldives', loc: 'South Malé Atoll', stars: 3, nights: 7 }],
+      4: [{ name: 'Centara Ras Fushi Resort &amp; Spa', loc: 'North Malé Atoll · Overwater', stars: 4, nights: 7 }],
+      5: [{ name: 'Conrad Maldives Rangali Island', loc: 'South Ari Atoll · Overwater Villa', stars: 5, nights: 7 }]
+    },
+    days: [
+      { title: 'Arrival in Malé', date: null,
+        morning: 'Arrive Velana International Airport (MLE) <strong>11:20</strong>.',
+        afternoon: '<strong>Speedboat / seaplane transfer</strong> to resort island (30–45 min). Welcome with coconut water.',
+        evening: 'Check-in to overwater villa. Sunset on private deck. Welcome dinner.'
+      },
+      { title: 'Resort &amp; Reef Day', date: null,
+        morning: '<strong>House-reef snorkelling</strong> right off your villa. Equipment included.',
+        afternoon: 'Pool, beach, and villa-deck relaxation. Light lunch.',
+        evening: '<strong>Dolphin sunset cruise</strong> from resort jetty. Dinner at over-water restaurant.'
+      },
+      { title: 'Sandbank Picnic + Manta Search', date: null,
+        morning: '<strong>Sandbank trip</strong> — a tiny patch of sand in the middle of the ocean. Champagne breakfast on the sandbank.',
+        afternoon: '<strong>Manta ray snorkelling excursion</strong> (seasonal — Apr to Nov best).',
+        evening: 'Return to resort. Spa appointment. Dinner at Indian restaurant on island.'
+      },
+      { title: 'Malé City &amp; Local Island', date: null,
+        morning: 'Boat to <strong>Malé Capital</strong> — Friday Mosque, Sultan Park, fish market.',
+        afternoon: 'Visit <strong>Maafushi local island</strong> — see Maldivian village life. Lunch at local guesthouse.',
+        evening: 'Return to resort. Beach BBQ dinner with cultural Bodu Beru drumming.'
+      },
+      { title: 'Adventure Day', date: null,
+        morning: '<strong>Scuba diving discovery course</strong> for beginners (₹6,500 pp) OR jet-ski tour.',
+        afternoon: '<strong>Whale shark snorkelling</strong> (seasonal at South Ari Atoll). Lunch on boat.',
+        evening: 'Beach yoga at sunset. Light dinner.'
+      },
+      { title: 'Spa &amp; Romance Day', date: null,
+        morning: 'Couples massage at overwater spa pavilion (90 min).',
+        afternoon: 'Private cabana on the beach. Floating breakfast in villa pool (₹4,500 add-on).',
+        evening: '<strong>Private candlelit dinner on the beach</strong> — set up just for you (₹12,500 add-on). Indian veg menu on request.'
+      },
+      { title: 'Leisure Day', date: null,
+        morning: 'Sleep in. Late breakfast on villa deck.',
+        afternoon: 'Stand-up paddleboarding / kayaking (included). Last reef snorkel.',
+        evening: 'Pack. Sunset cocktails. Farewell dinner.'
+      },
+      { title: 'Departure', date: null,
+        morning: 'Speedboat / seaplane transfer back to MLE airport.',
+        afternoon: 'Flight <strong>MLE 23:00 → AMD 08:15</strong> next day (via Mumbai).',
+        evening: '<strong>Welcome home!</strong>'
+      }
+    ]
+  },
+
+  rajasthan: {
+    name: 'Rajasthan',
+    title: 'Rajasthan — Royal Triangle',
+    tagline: 'Pink City, City of Lakes, and Golden Sands',
+    code: 'JAI',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'IndiGo 6E-2055 · AMD 12:35 → JAI 13:50 (direct)',
+    returnFlight: 'Drive Jaisalmer → Jodhpur, then JDH 16:20 → AMD 17:35',
+    visa: { type: 'Domestic — No visa required', validity: 'N/A', processing: 'N/A', fee: 'N/A',
+      docs: 'Govt photo ID for all travellers required at hotel check-in &amp; for fort/palace entries' },
+    hotels: {
+      3: [
+        { name: 'Hotel Pearl Palace', loc: 'Jaipur', stars: 3, nights: 2 },
+        { name: 'Hotel Boheda Palace', loc: 'Udaipur', stars: 3, nights: 2 },
+        { name: 'Hotel Pleasant Haveli', loc: 'Jaisalmer', stars: 3, nights: 3 }
+      ],
+      4: [
+        { name: 'Trident Jaipur', loc: 'Jaipur · Amber Fort Road', stars: 4, nights: 2 },
+        { name: 'Trident Udaipur', loc: 'Udaipur · Haldighati Marg', stars: 4, nights: 2 },
+        { name: 'Hotel Rang Mahal', loc: 'Jaisalmer · Heritage', stars: 4, nights: 3 }
+      ],
+      5: [
+        { name: 'Rambagh Palace, Jaipur (Taj)', loc: 'Jaipur · Palace Hotel', stars: 5, nights: 2 },
+        { name: 'Taj Lake Palace', loc: 'Udaipur · Lake Pichola', stars: 5, nights: 2 },
+        { name: 'Suryagarh Jaisalmer', loc: 'Jaisalmer · Fortress Hotel', stars: 5, nights: 3 }
+      ]
+    },
+    days: [
+      { title: 'Arrival in Jaipur', date: null,
+        morning: 'Depart AMD <strong>12:35</strong> → arrive Jaipur (JAI) <strong>13:50</strong>. Transfer to hotel.',
+        afternoon: 'Check-in. Lunch at <strong>Rawat Mishtan Bhandar</strong> — famous Jaipuri kachori &amp; thali (pure veg).',
+        evening: '<strong>Albert Hall Museum</strong> &amp; Janta Market shopping. Dinner at hotel.'
+      },
+      { title: 'Jaipur Heritage Day', date: null,
+        morning: '<strong>Amber Fort</strong> — elephant or jeep ride up the ramp. Sheesh Mahal (Hall of Mirrors).',
+        afternoon: '<strong>Jal Mahal</strong> photo stop · <strong>City Palace</strong> · <strong>Jantar Mantar</strong> (UNESCO observatory). Lunch at <strong>1135 AD</strong> (in Amber Fort).',
+        evening: '<strong>Hawa Mahal</strong> at golden hour · shopping at <strong>Johari Bazaar</strong> for jewellery &amp; bandhej. Dinner at <strong>Chokhi Dhani</strong> village resort with cultural folk show.'
+      },
+      { title: 'Drive Jaipur → Udaipur (via Pushkar)', date: null,
+        morning: '<strong>Drive 4 hours to Udaipur</strong>. Stop at <strong>Pushkar</strong> en route — Brahma Temple &amp; sacred lake.',
+        afternoon: 'Continue drive. Arrive Udaipur by evening.',
+        evening: 'Check-in. <strong>Ambrai Ghat sunset</strong> view of City Palace across Lake Pichola. Dinner at <strong>Upre by 1559 AD</strong>.'
+      },
+      { title: 'Udaipur — City of Lakes', date: null,
+        morning: '<strong>City Palace</strong> (largest palace complex in Rajasthan) · <strong>Jagdish Temple</strong>.',
+        afternoon: 'Lunch at <strong>Natraj Dining Hall</strong> (legendary Gujarati-Rajasthani thali). Visit <strong>Saheliyon Ki Bari</strong> gardens.',
+        evening: '<strong>Boat ride on Lake Pichola</strong> at sunset — Jag Mandir island. Dinner at <strong>Sunset Terrace</strong>.'
+      },
+      { title: 'Drive Udaipur → Jaisalmer', date: null,
+        morning: '<strong>Long drive (8 hours)</strong> with stops. Lunch en route at Pali.',
+        afternoon: 'Arrive Jaisalmer by evening. Check-in to heritage haveli hotel.',
+        evening: '<strong>Sunset at Gadisar Lake</strong>. Dinner at hotel rooftop overlooking Jaisalmer Fort (the Golden Fort).'
+      },
+      { title: 'Jaisalmer Fort &amp; Havelis', date: null,
+        morning: '<strong>Jaisalmer Fort</strong> (a living fort with families still inside) · <strong>Jain Temples</strong> within the fort.',
+        afternoon: '<strong>Patwon ki Haveli</strong> · <strong>Salim Singh ki Haveli</strong> — exquisite carved sandstone. Lunch at <strong>Saffron Restaurant</strong>.',
+        evening: 'Free time. Optional shopping for Rajasthani textiles &amp; mojaris.'
+      },
+      { title: 'Sam Sand Dunes — Desert Camp', date: null,
+        morning: 'Leisure morning at hotel.',
+        afternoon: 'Drive to <strong>Sam Sand Dunes (45 min)</strong>. Check-in to luxury desert camp.',
+        evening: '<strong>Camel ride at sunset</strong> over the dunes. Cultural night: Kalbeliya dance, Manganiyar folk music, traditional Rajasthani dinner under the stars.'
+      },
+      { title: 'Departure', date: null,
+        morning: 'Sunrise over the dunes. Breakfast at camp. Drive back to Jaisalmer.',
+        afternoon: 'Transfer to <strong>Jodhpur airport (4 hours)</strong>. Lunch en route.',
+        evening: 'Flight <strong>JDH 16:20 → AMD 17:35</strong>. <strong>Welcome home!</strong>'
+      }
+    ]
+  },
+
+  bali: {
+    name: 'Bali',
+    title: 'Bali — Island of the Gods',
+    tagline: 'Rice terraces, temples, and Seminyak sunsets',
+    code: 'DPS',
+    flightFrom: 'Ahmedabad (AMD)',
+    sampleFlight: 'Singapore Airlines via SIN · AMD 23:55 → SIN 07:30 → DPS 10:25',
+    returnFlight: 'Singapore Airlines · DPS 19:35 → SIN 22:10 → AMD 05:30',
+    visa: { type: 'Indonesia Visa on Arrival (e-VOA)', validity: '30 days (extendable)', processing: 'Online before travel OR on arrival', fee: 'IDR 500,000 (~₹2,800)',
+      docs: 'Passport (6mo validity), return ticket, hotel confirmation, photo' },
+    hotels: {
+      3: [
+        { name: 'The Ubud Village Hotel', loc: 'Ubud', stars: 3, nights: 3 },
+        { name: 'The Sintesa Jimbaran', loc: 'Jimbaran Bay', stars: 3, nights: 4 }
+      ],
+      4: [
+        { name: 'Visesa Ubud Resort', loc: 'Ubud · Rice-field view', stars: 4, nights: 3 },
+        { name: 'The Anvaya Beach Resort', loc: 'Kuta Beach', stars: 4, nights: 4 }
+      ],
+      5: [
+        { name: 'Four Seasons Resort Bali at Sayan', loc: 'Ubud · River Valley', stars: 5, nights: 3 },
+        { name: 'The Mulia Bali', loc: 'Nusa Dua · Private Beach', stars: 5, nights: 4 }
+      ]
+    },
+    days: [
+      { title: 'Arrival in Bali → Ubud', date: null,
+        morning: 'Arrive Denpasar (DPS) <strong>10:25</strong>. Private transfer to Ubud (1.5 hours).',
+        afternoon: 'Check-in to Ubud resort. Lunch at <strong>Sari Organik</strong> (rice-paddy views, veg-friendly).',
+        evening: '<strong>Ubud Palace</strong> &amp; Ubud Market. Traditional <strong>Kecak Fire Dance</strong> performance at sunset.'
+      },
+      { title: 'Ubud Nature &amp; Culture', date: null,
+        morning: '<strong>Tegallalang Rice Terraces</strong> — iconic Bali photo spot. Jungle swing optional (₹2,500 pp).',
+        afternoon: '<strong>Sacred Monkey Forest</strong> · <strong>Tirta Empul Holy Spring</strong> (purification ritual). Lunch at <strong>Watercress Café</strong>.',
+        evening: 'Bali traditional dinner at <strong>Mozaic Beachclub</strong> in Batu Belig (Indian veg available on request).'
+      },
+      { title: 'Volcano + Coffee Plantation', date: null,
+        morning: '<strong>Mount Batur sunrise trek</strong> (optional) OR late breakfast.',
+        afternoon: '<strong>Kintamani Volcano viewpoint</strong> with lunch overlooking the caldera. <strong>Luwak coffee plantation</strong> visit &amp; tasting.',
+        evening: 'Return to Ubud. Spa session: <strong>Balinese massage + flower bath</strong> at hotel.'
+      },
+      { title: 'Drive Ubud → South Bali Beach Area', date: null,
+        morning: 'Check out from Ubud. En route: <strong>Tanah Lot Temple</strong> — sea temple on rock formation.',
+        afternoon: 'Arrive at beach resort (Kuta / Nusa Dua / Jimbaran). Check-in &amp; rest.',
+        evening: 'Famous <strong>Jimbaran Bay seafood / vegetarian dinner on the beach</strong> with toes in the sand.'
+      },
+      { title: 'Nusa Penida Island Day Tour', date: null,
+        morning: 'Early speedboat to <strong>Nusa Penida</strong>. <strong>Kelingking Beach</strong> viewpoint (T-Rex cliff).',
+        afternoon: '<strong>Angel\'s Billabong</strong> &amp; Broken Beach. Snorkelling with manta rays at Manta Point.',
+        evening: 'Return to Bali by sunset. Light dinner at hotel.'
+      },
+      { title: 'Uluwatu &amp; Beach Day', date: null,
+        morning: 'Beach morning at resort. Optional surf lesson (₹2,000 pp) — Kuta is great for beginners.',
+        afternoon: '<strong>Uluwatu Temple</strong> — clifftop temple with monkeys. Lunch at <strong>Single Fin</strong>.',
+        evening: '<strong>Kecak Dance at Uluwatu at sunset</strong> — most dramatic show in Bali. Seafood / veg dinner.'
+      },
+      { title: 'Leisure + Shopping', date: null,
+        morning: 'Free morning at beach / pool.',
+        afternoon: '<strong>Seminyak shopping</strong> — boutiques, designer wear, souvenirs. Lunch at <strong>Sisterfields</strong>.',
+        evening: 'Sunset at <strong>Potato Head Beach Club</strong>. Final dinner — multi-course tasting menu.'
+      },
+      { title: 'Departure', date: null,
+        morning: 'Leisure morning. Late check-out arranged.',
+        afternoon: 'Transfer to DPS airport.',
+        evening: 'Flight <strong>DPS 19:35 → AMD 05:30</strong> next day (via Singapore). <strong>Welcome home!</strong>'
+      }
+    ]
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════════════
+let selectedInterests = new Set();
+let currentItinerary = null;
+
+// Interest chips
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const v = chip.dataset.int;
+    if (selectedInterests.has(v)) {
+      selectedInterests.delete(v); chip.classList.remove('selected');
+    } else {
+      selectedInterests.add(v); chip.classList.add('selected');
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  DEMO SCENARIO — Rajesh family from SOP
+// ════════════════════════════════════════════════════════════════════
+function loadDemoScenario() {
+  document.getElementById('clientName').value = 'Rajesh & Family';
+  document.getElementById('clientPhone').value = '+91 98250 12345';
+  document.getElementById('destination').value = 'thailand';
+  document.getElementById('duration').value = '7';
+  document.getElementById('budget').value = '4';
+  document.getElementById('startDate').value = '2026-10-12';
+  document.getElementById('endDate').value = '2026-10-20';
+  document.getElementById('adults').value = '2';
+  document.getElementById('children').value = '2';
+  document.getElementById('diet').value = 'veg';
+  document.getElementById('visa').checked = true;
+
+  selectedInterests = new Set(['Beach', 'Sightseeing', 'Shopping', 'Family Activities']);
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.classList.toggle('selected', selectedInterests.has(chip.dataset.int));
+  });
+  showToast('Demo scenario loaded — Rajesh family, Thailand 7N');
+}
+
+function resetForm() {
+  document.querySelectorAll('input').forEach(i => { if (i.type !== 'checkbox') i.value = ''; else i.checked = false; });
+  document.getElementById('destination').value = '';
+  document.getElementById('duration').value = '7';
+  document.getElementById('budget').value = '4';
+  document.getElementById('diet').value = 'veg';
+  document.getElementById('adults').value = '2';
+  document.getElementById('children').value = '0';
+  selectedInterests.clear();
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById('previewPanel').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <div class="icon-large">📋</div>
+      <h2>No itinerary yet</h2>
+      <p>Fill in the client details on the left and click <strong>Generate</strong>. A complete branded itinerary will appear here in under 60 seconds — ready to send.</p>
+    </div>`;
+  currentItinerary = null;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  GENERATION FLOW
+// ════════════════════════════════════════════════════════════════════
+function gatherInputs() {
+  const destKey = document.getElementById('destination').value;
+  if (!destKey) return null;
+  return {
+    clientName: document.getElementById('clientName').value || 'Valued Guest',
+    clientPhone: document.getElementById('clientPhone').value,
+    destKey,
+    dest: DESTINATIONS[destKey],
+    duration: parseInt(document.getElementById('duration').value),
+    budget: parseInt(document.getElementById('budget').value),
+    startDate: document.getElementById('startDate').value,
+    endDate: document.getElementById('endDate').value,
+    adults: parseInt(document.getElementById('adults').value),
+    children: parseInt(document.getElementById('children').value),
+    diet: document.getElementById('diet').value,
+    interests: [...selectedInterests],
+    visa: document.getElementById('visa').checked
+  };
+}
+
+function generateItinerary() {
+  const data = gatherInputs();
+  if (!data) {
+    showToast('Please select a destination first', true);
+    return;
+  }
+  if (!data.startDate) {
+    showToast('Please select a start date', true);
+    return;
+  }
+
+  // Show progress UI
+  const panel = document.getElementById('previewPanel');
+  panel.innerHTML = `
+    <div class="progress-card">
+      <h2><div class="spinner"></div> Generating Itinerary...</h2>
+      <p class="sub">Working with destination knowledge base &amp; live hotel data — please wait.</p>
+      <div class="progress-bar"><div class="progress-bar-fill" id="pbFill" style="width:0%"></div></div>
+      <div class="progress-steps" id="progressSteps">
+        <div class="progress-step" data-i="0"><div class="step-icon">1</div><div class="step-text">Analysing client preferences &amp; group profile</div></div>
+        <div class="progress-step" data-i="1"><div class="step-icon">2</div><div class="step-text">Researching hotels &amp; availability for ${data.dest.name}</div></div>
+        <div class="progress-step" data-i="2"><div class="step-icon">3</div><div class="step-text">Building day-by-day activity plan</div></div>
+        <div class="progress-step" data-i="3"><div class="step-icon">4</div><div class="step-text">Adding ${data.diet === 'veg' || data.diet === 'jain' ? 'vegetarian-friendly dining recommendations' : 'restaurant recommendations'}</div></div>
+        <div class="progress-step" data-i="4"><div class="step-icon">5</div><div class="step-text">Checking flights from Ahmedabad (AMD)</div></div>
+        <div class="progress-step" data-i="5"><div class="step-icon">6</div><div class="step-text">${data.visa ? 'Adding visa requirements &amp; travel advisory' : 'Generating travel advisory'}</div></div>
+        <div class="progress-step" data-i="6"><div class="step-icon">7</div><div class="step-text">Formatting branded Rise &amp; Shine PDF</div></div>
+      </div>
+    </div>`;
+
+  // Animate the steps over ~45 seconds (under 60 — feels snappy)
+  const steps = document.querySelectorAll('.progress-step');
+  const totalSteps = steps.length;
+  let i = 0;
+  steps[0].classList.add('active');
+  const stepDuration = 5500;
+
+  const stepInterval = setInterval(() => {
+    if (i < totalSteps) {
+      steps[i].classList.remove('active');
+      steps[i].classList.add('done');
+      i++;
+      if (i < totalSteps) steps[i].classList.add('active');
+      const pct = (i / totalSteps) * 100;
+      document.getElementById('pbFill').style.width = pct + '%';
+    } else {
+      clearInterval(stepInterval);
+      renderItinerary(data);
+    }
+  }, stepDuration);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  RENDER ITINERARY
+// ════════════════════════════════════════════════════════════════════
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function addDays(iso, n) {
+  const d = new Date(iso); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderItinerary(data) {
+  currentItinerary = data;
+  const dest = data.dest;
+  const totalDays = data.duration + 1;
+  const days = dest.days.slice(0, totalDays);
+
+  // Stamp dates onto days
+  days.forEach((d, idx) => { d.date = addDays(data.startDate, idx); });
+
+  const hotels = dest.hotels[data.budget] || dest.hotels[4];
+  const budgetLabel = data.budget === 3 ? 'Budget (3-Star)' : data.budget === 4 ? 'Mid-Range (4-Star)' : 'Luxury (5-Star)';
+  const groupStr = `${data.adults} Adult${data.adults > 1 ? 's' : ''}${data.children > 0 ? ` + ${data.children} Child${data.children > 1 ? 'ren' : ''}` : ''}`;
+  const dietStr = data.diet === 'veg' ? 'Vegetarian' : data.diet === 'jain' ? 'Jain' : data.diet === 'non-veg' ? 'Non-Veg' : 'Mixed';
+
+  const html = `
+    <div class="preview-toolbar">
+      <div class="left">
+        <div class="badge-ready">✓ Ready</div>
+        <div>
+          <div style="font-weight:700;font-size:14px">${data.clientName} — ${dest.name}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${data.duration}N / ${data.duration + 1}D · ${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-action btn-edit" onclick="openEditModal()">✏️ Edit Day</button>
+        <button class="btn-action btn-whatsapp" onclick="openModal('waModal')">📱 Send WhatsApp</button>
+        <button class="btn-action btn-download" onclick="downloadPDF()">⬇ Download PDF</button>
+      </div>
+    </div>
+
+    <div class="doc-preview" id="docPreview">
+      <div class="pdf-root" id="pdfRoot">
+
+        <!-- ─── COVER ─── -->
+        <div class="pdf-cover">
+          <div class="pdf-cover-brand">
+            <div class="mark">R&amp;S</div>
+            <div>
+              <h3>Rise &amp; Shine Travel</h3>
+              <p>Ahmedabad · IATA Accredited · Since 2009</p>
+            </div>
+          </div>
+          <div class="pdf-cover-tag">Customised Itinerary</div>
+          <h1>${dest.title}</h1>
+          <p class="subtitle">${dest.tagline}</p>
+          <div class="pdf-cover-grid">
+            <div class="pdf-cover-item"><div class="lbl">Prepared For</div><div class="val">${data.clientName}</div></div>
+            <div class="pdf-cover-item"><div class="lbl">Duration</div><div class="val">${data.duration} Nights / ${data.duration + 1} Days</div></div>
+            <div class="pdf-cover-item"><div class="lbl">Travel Dates</div><div class="val">${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}</div></div>
+            <div class="pdf-cover-item"><div class="lbl">Group</div><div class="val">${groupStr}</div></div>
+          </div>
+        </div>
+        <div class="pdf-footer">
+          <div class="left">
+            <span class="iata-badge">IATA</span>
+            <span>Rise &amp; Shine Travel · Ahmedabad</span>
+          </div>
+          <div class="pdf-footer-contact">
+            <div>+91 79 XXXX XXXX</div>
+            <div>hello@riseandshinetravel.com</div>
+          </div>
+        </div>
+
+        <!-- ─── PAGE 2 — TRIP OVERVIEW ─── -->
+        <div class="pdf-page">
+          <div class="pdf-page-header">
+            <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+            <div class="page-name">Trip Overview</div>
+          </div>
+          <h2 class="pdf-section-title">Welcome, ${data.clientName}!</h2>
+          <p class="pdf-section-sub">Here is your customised ${dest.name} itinerary</p>
+
+          <div class="pdf-greeting">
+            <p>We are delighted to present your personalised journey to <strong>${dest.name}</strong>. Every detail — from hotels matched to your <strong>${budgetLabel}</strong> preference, to ${dietStr.toLowerCase()} dining options highlighted each day, to local transport and visa support — has been carefully arranged by our team.</p>
+            <p style="margin-top:8px">Your dedicated travel expert will follow up to confirm every booking and to walk you through any pre-departure questions.</p>
+            <p class="from">— With warm regards,<br>The Rise &amp; Shine Travel Team</p>
+          </div>
+
+          <div class="trip-summary-grid">
+            <div class="ts-card"><div class="lbl">Group</div><div class="val">${groupStr}</div></div>
+            <div class="ts-card"><div class="lbl">Budget Tier</div><div class="val">${budgetLabel}</div></div>
+            <div class="ts-card"><div class="lbl">Diet</div><div class="val">${dietStr}</div></div>
+            <div class="ts-card"><div class="lbl">Total Days</div><div class="val">${data.duration + 1} days</div></div>
+            <div class="ts-card"><div class="lbl">Total Nights</div><div class="val">${data.duration} nights</div></div>
+            <div class="ts-card"><div class="lbl">Visa Required</div><div class="val">${data.visa ? 'Yes — assistance included' : 'Not required'}</div></div>
+          </div>
+
+          <h3 style="font-size:16px;color:#0d6e6e;margin:18px 0 10px">Your Accommodations</h3>
+          <div class="hotel-list">
+            ${hotels.map(h => `
+              <div class="hotel-row">
+                <div class="stars">${'★'.repeat(h.stars)}${'☆'.repeat(5 - h.stars)}</div>
+                <div class="info">
+                  <div class="name">${h.name}</div>
+                  <div class="loc">${h.loc}</div>
+                </div>
+                <div class="nights">${h.nights} night${h.nights > 1 ? 's' : ''}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="title">✈ Outbound Flight</div>
+              <p>${dest.sampleFlight}</p>
+            </div>
+            <div class="info-card">
+              <div class="title">🛬 Return Flight</div>
+              <p>${dest.returnFlight}</p>
+            </div>
+          </div>
+
+          ${data.interests.length ? `
+            <div class="info-card" style="margin-bottom:0">
+              <div class="title">★ Tailored Around Your Interests</div>
+              <p>${data.interests.join(' · ')}</p>
+            </div>
+          ` : ''}
+        </div>
+        <div class="pdf-footer">
+          <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Page 2</span></div>
+          <div class="pdf-footer-contact"><div>Prepared ${fmtDate(new Date().toISOString().slice(0,10))}</div></div>
+        </div>
+
+        <!-- ─── DAY-BY-DAY PAGES ─── -->
+        ${renderDayPages(days, data)}
+
+        <!-- ─── VISA / ADVISORY PAGE ─── -->
+        <div class="pdf-page">
+          <div class="pdf-page-header">
+            <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+            <div class="page-name">Visa &amp; Travel Advisory</div>
+          </div>
+          <h2 class="pdf-section-title">${data.visa ? 'Visa Information' : 'Travel Documents'}</h2>
+          <p class="pdf-section-sub">${data.visa ? 'Our team handles your complete visa process' : 'What to carry'}</p>
+
+          <div class="visa-box">
+            <div class="title">📋 ${dest.visa.type}</div>
+            <div class="row"><span>Validity</span><strong>${dest.visa.validity}</strong></div>
+            <div class="row"><span>Processing Time</span><strong>${dest.visa.processing}</strong></div>
+            <div class="row"><span>Visa Fee</span><strong>${dest.visa.fee}</strong></div>
+          </div>
+
+          <div class="info-card" style="margin-bottom:20px">
+            <div class="title">📑 Documents to Carry</div>
+            <p>${dest.visa.docs}</p>
+          </div>
+
+          <h3 style="font-size:16px;color:#0d6e6e;margin:18px 0 10px">Important Travel Notes</h3>
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="title">💱 Currency</div>
+              <p>Recommend carrying a forex card. Rise &amp; Shine partners with BookMyForex for best rates — ask your travel expert.</p>
+            </div>
+            <div class="info-card">
+              <div class="title">📱 Connectivity</div>
+              <p>International roaming or local SIM at arrival airport. Free Wi-Fi available at all our partner hotels.</p>
+            </div>
+            <div class="info-card">
+              <div class="title">🏥 Insurance</div>
+              <p>Travel insurance is strongly recommended for all international trips. Quote available on request — typically ₹400–800 per traveller.</p>
+            </div>
+            <div class="info-card">
+              <div class="title">📞 24/7 Support</div>
+              <p>Reach our on-trip helpline <strong>+91 79 XXXX XXXX</strong> any time during your trip. WhatsApp available for non-emergencies.</p>
+            </div>
+          </div>
+
+          <div class="pdf-greeting" style="margin-top:20px">
+            <p><strong>Pricing &amp; Booking:</strong> The detailed price breakdown for this package will be shared by your travel expert during the follow-up call. Prices are subject to availability at the time of booking. To confirm this itinerary, a 25% advance is required; balance is due 15 days before departure.</p>
+          </div>
+        </div>
+        <div class="pdf-footer">
+          <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Final Page</span></div>
+          <div class="pdf-footer-contact">
+            <div>hello@riseandshinetravel.com</div>
+            <div>www.riseandshinetravel.com</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.getElementById('previewPanel').innerHTML = html;
+  // Populate edit-day selector
+  const sel = document.getElementById('editDay');
+  sel.innerHTML = days.map((d, i) => `<option value="${i}">Day ${i + 1} — ${d.title}</option>`).join('');
+}
+
+function renderDayPages(days, data) {
+  // Group days 2 per page-ish; but for simplicity, page-break after every 2 day cards
+  let html = '';
+  let pageCount = 0;
+  for (let i = 0; i < days.length; i += 2) {
+    pageCount++;
+    html += `
+      <div class="pdf-page">
+        <div class="pdf-page-header">
+          <div class="left"><div class="mark">R&amp;S</div><div class="name">Rise &amp; Shine Travel</div></div>
+          <div class="page-name">Day-by-Day Itinerary</div>
+        </div>
+        ${i === 0 ? `<h2 class="pdf-section-title">Your Day-by-Day Journey</h2><p class="pdf-section-sub">Detailed plan for each day of your trip</p>` : ''}
+        ${[i, i + 1].filter(j => j < days.length).map(j => renderDayCard(days[j], j)).join('')}
+      </div>
+      <div class="pdf-footer">
+        <div class="left"><span class="iata-badge">IATA</span><span>Rise &amp; Shine Travel · Itinerary</span></div>
+        <div class="pdf-footer-contact"><div>Days ${i + 1}–${Math.min(i + 2, days.length)} of ${days.length}</div></div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderDayCard(day, idx) {
+  return `
+    <div class="day-card">
+      <div class="day-card-header">
+        <div>
+          <span class="day-num">DAY ${idx + 1}</span>
+          <span class="day-title" style="margin-left:10px">${day.title}</span>
+        </div>
+        <span class="day-date">${fmtDate(day.date)}</span>
+      </div>
+      <div class="day-card-body">
+        <div class="day-slot">
+          <div class="slot-label">☀ Morning</div>
+          <div class="slot-content">${day.morning}</div>
+        </div>
+        <div class="day-slot">
+          <div class="slot-label">🌤 Afternoon</div>
+          <div class="slot-content">${day.afternoon}</div>
+        </div>
+        <div class="day-slot">
+          <div class="slot-label">🌙 Evening</div>
+          <div class="slot-content">${day.evening}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  PDF EXPORT
+// ════════════════════════════════════════════════════════════════════
+function downloadPDF() {
+  if (!currentItinerary) return;
+  const el = document.getElementById('pdfRoot');
+  const filename = `RiseAndShine_${currentItinerary.dest.name.replace(/\s+/g, '_')}_${currentItinerary.clientName.replace(/\s+/g, '_')}.pdf`;
+
+  showToast('Preparing PDF...');
+
+  html2pdf().set({
+    margin: 0,
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'avoid-all'] }
+  }).from(el).save().then(() => {
+    showToast('✓ PDF downloaded successfully');
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  EDIT & SEND
+// ════════════════════════════════════════════════════════════════════
+function openModal(id) {
+  if (id === 'waModal' && currentItinerary) {
+    document.getElementById('waNumber').value = currentItinerary.clientPhone || '';
+    document.getElementById('waMessage').value = `Dear ${currentItinerary.clientName.split(' ')[0]}, please find attached your customised ${currentItinerary.dest.name} itinerary. Looking forward to making this trip a wonderful one for you. — Rise & Shine Travel`;
+  }
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function openEditModal() { openModal('editModal'); }
+
+function sendWhatsApp() {
+  const num = document.getElementById('waNumber').value;
+  if (!num) { showToast('Please enter a WhatsApp number', true); return; }
+  closeModal('waModal');
+  showToast('Sending...');
+  setTimeout(() => {
+    showToast('✓ PDF sent to ' + num + ' via WhatsApp');
+  }, 1400);
+}
+
+function applyEdit() {
+  const dayIdx = parseInt(document.getElementById('editDay').value);
+  const newText = document.getElementById('editText').value.trim();
+  if (!newText) { showToast('Please describe the change', true); return; }
+  closeModal('editModal');
+
+  // Show a quick regeneration animation
+  const cards = document.querySelectorAll('.day-card');
+  if (cards[dayIdx]) {
+    cards[dayIdx].style.opacity = '0.4';
+    cards[dayIdx].style.transition = 'opacity 0.3s';
+  }
+  showToast('Regenerating Day ' + (dayIdx + 1) + '...');
+
+  setTimeout(() => {
+    // Apply a sensible regeneration of that day based on user instruction
+    const day = currentItinerary.dest.days[dayIdx];
+    // Smart-edit: if user mentions cooking class, apply that template
+    const lower = newText.toLowerCase();
+    if (lower.includes('cooking')) {
+      day.morning = '<strong>Thai cooking class</strong> at Silom Thai Cooking School — visit the local market to source ingredients, then prepare 4 traditional dishes (vegetarian menu available).';
+      day.afternoon = 'Enjoy lunch from the dishes you cooked. Free time at hotel pool.';
+      day.evening = 'Sunset stroll along the beach. Light dinner at hotel.';
+    } else if (lower.includes('spa') || lower.includes('massage')) {
+      day.morning = '<strong>Full spa morning</strong> — couples Thai massage (90 min) + herbal sauna + facial.';
+      day.afternoon = 'Leisure at resort. Light lunch by the pool.';
+      day.evening = 'Relaxed sunset dinner at the hotel.';
+    } else if (lower.includes('shopping')) {
+      day.morning = 'Hotel breakfast. Transfer to <strong>major shopping district</strong>.';
+      day.afternoon = 'Shopping with personal driver waiting. Lunch break at a top-rated restaurant.';
+      day.evening = 'Return to hotel. Dinner included.';
+    } else {
+      // Fall-back generic regeneration based on user's free-form input
+      day.morning = `<strong>${newText.split('.')[0]}</strong> — arranged by Rise &amp; Shine team.`;
+      day.afternoon = 'Customised activity continues. Lunch arranged.';
+      day.evening = 'Free evening / dinner at hotel.';
+    }
+    day.title = day.title + ' (Updated)';
+
+    // Re-render
+    renderItinerary(currentItinerary);
+    showToast('✓ Day ' + (dayIdx + 1) + ' regenerated');
+  }, 2200);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════════════════
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.querySelector('.icon').style.background = isError ? 'var(--danger)' : 'var(--success)';
+  t.querySelector('.icon').textContent = isError ? '!' : '✓';
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  Auto-update end date when start + duration changes
+// ════════════════════════════════════════════════════════════════════
+function syncEndDate() {
+  const start = document.getElementById('startDate').value;
+  const dur = parseInt(document.getElementById('duration').value);
+  if (start && dur) {
+    document.getElementById('endDate').value = addDays(start, dur);
+  }
+}
+document.getElementById('startDate').addEventListener('change', syncEndDate);
+document.getElementById('duration').addEventListener('change', syncEndDate);
+
+</script>
+</body>
+</html>
