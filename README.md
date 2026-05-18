@@ -1,122 +1,90 @@
-# Rise & Shine — AI Itinerary Generator (Vercel Deploy)
+# Rise & Shine — AI Itinerary Generator (v2, live backend)
 
-Live web tool for the Rise & Shine Travel demo. Single-file, no build step, no env vars, no backend.
+Next.js app that builds a **branded, hour-by-hour, done-for-you itinerary** from
+**live data**: flights + hotels (Amadeus), attractions + diet-matched restaurants
+(Google Places), traveller intel (Reddit), composed into a timed day plan by Claude.
 
----
+> Every provider has a **labelled sample fallback**. The app builds, runs and
+> renders with **zero keys** — sample data is clearly badged. Add a key and that
+> provider goes live automatically. Nothing to rewire.
 
-## Deploy to Vercel — pick one path
-
-### Option A · Drag-and-drop (fastest, ~60 seconds, no CLI)
-
-1. Open **https://vercel.com/new**
-2. Sign in with your GitHub / Google / email
-3. Scroll down — you'll see a **"Deploy a template"** section. Above it there is a button labeled **"Browse all templates"** — ignore.
-4. Instead, **drag this entire `riseandshine-itinerary-vercel` folder** onto the page (anywhere in the upload area). Vercel will detect `index.html` and treat it as a static site.
-5. Give the project a name (e.g. `riseandshine-itinerary`) and hit **Deploy**.
-6. ~30 seconds later you'll get a live URL like `https://riseandshine-itinerary.vercel.app`. That's the link to share on Google Meet.
-
-> If the new-page UI doesn't show drag-drop, use Option B instead — it's the same thing via the terminal.
-
-### Option B · Vercel CLI (great if you already have Node installed)
+## Run it
 
 ```bash
-# 1. install the CLI once
-npm install -g vercel
-
-# 2. from inside this folder
-cd riseandshine-itinerary-vercel
-vercel
+npm install
+cp .env.example .env.local      # optional — fill keys to go live
+npm run dev                     # http://localhost:3000
+# production:
+npm run build && npm start
 ```
 
-The CLI will ask 4 quick questions:
-- *Set up and deploy?* → **Y**
-- *Which scope?* → your account
-- *Link to existing project?* → **N**
-- *Project name?* → `riseandshine-itinerary` (or anything)
-- *In which directory is your code located?* → press **Enter** (current dir)
-
-It'll deploy to a preview URL in ~20 seconds. To promote it to a permanent production URL:
+## Deploy (Vercel)
 
 ```bash
+vercel
 vercel --prod
 ```
+Set the env vars from `.env.example` in **Vercel → Project → Settings →
+Environment Variables**. On Vercel the AI Gateway can use the zero-rotation
+OIDC token automatically.
 
-You'll get a clean URL like `https://riseandshine-itinerary.vercel.app`.
+## Live data — what to provision
 
-### Option C · Push to GitHub then connect
+| Capability | Provider | Key(s) | Free? |
+|---|---|---|---|
+| Flights AMD⇄dest, real fare | **Amadeus Self-Service** | `AMADEUS_CLIENT_ID` / `_SECRET` | free test tier |
+| Hotels by city, live rate | **Amadeus** | (same) | free test tier |
+| Restaurants (veg/Jain) + monuments + photos | **Google Places (New)** | `GOOGLE_PLACES_API_KEY` | free tier, billing card |
+| Hour-by-hour day plan | **Claude** via AI Gateway | `AI_GATEWAY_API_KEY` *or* `ANTHROPIC_API_KEY` | paid per use |
+| Do / Skip / Don't-miss intel | **Reddit API** | `REDDIT_CLIENT_ID` / `_SECRET` | free |
 
-If you want a "redeploy on every Git push" workflow:
+Each request fans out to all providers in parallel; the orchestrator falls back
+to labelled sample data per provider independently, so a missing key never
+breaks the page.
 
-```bash
-cd riseandshine-itinerary-vercel
-git init && git add . && git commit -m "Initial"
-gh repo create riseandshine-itinerary --public --source=. --push
+## Architecture
+
+```
+app/
+  page.tsx                 client UI: form -> /api/itinerary -> visual render + PDF
+  api/itinerary/route.ts   POST: validates TripRequest, runs the orchestrator
+lib/
+  itinerary/
+    schema.ts              zod schema/types (TripRequest, Day, TimeBlock, Place)
+    build.ts               orchestrator - parallel fan-out, pricing, freshness
+    compose.ts             Claude grounded hour-by-hour engine + template
+                           fallback + intel synthesis
+  providers/
+    amadeus.ts             flights + hotels (OAuth token cache) + fallback
+    googlePlaces.ts        attractions + diet-aware restaurants + photos + fallback
+    reddit.ts              app-only OAuth thread signal + fallback
+    claude.ts              model resolver (Gateway/OIDC/key, else Anthropic key)
+    sampleData.ts          labelled sample flights/hotels (real Expedia pull)
+  destinations.ts          destination meta + nights split across city legs
+  money.ts                 USD/INR
+legacy/                    original single-file v1 (kept for reference)
+public/assets/logo.png     real Rise & Shine logo
 ```
 
-Then go to vercel.com/new → "Import Git Repository" → select the repo → Deploy.
+### The hour-by-hour engine
 
----
-
-## During the demo
-
-1. Open your deployed URL on the laptop you're screen-sharing.
-2. Click **"Load Demo Scenario"** to instantly populate the Rajesh family / Thailand inputs from the SOP.
-3. Walk through the form while narrating. Hit **Generate**.
-4. The 7-step progress animation runs (~40 seconds).
-5. Walk the client through the branded PDF preview on the right.
-6. Click **Edit Day** to demonstrate the "swap Phi Phi for a cooking class" moment from the SOP.
-7. Click **Send WhatsApp** → enter a team member's number → show the confirmation.
-8. Click **Download PDF** to hand them the branded file in the meeting.
-
-## Custom domain (optional)
-
-Once deployed, in the Vercel project dashboard → **Settings → Domains** → add `itinerary.riseandshine.in` (or any subdomain you own). Vercel auto-issues a free SSL cert in ~2 minutes.
-
-## What's in this folder
-
-| File | Purpose |
-|------|---------|
-| `index.html` | The entire tool — HTML, CSS, JS, live data + destination templates |
-| `assets/logo.png` | Real Rise & Shine logo (bundled so it renders in the PDF) |
-| `vercel.json` | Caching headers + clean URLs config |
-| `README.md` | This file |
-
-## v2 — Real live data (what changed)
-
-**Thailand is now backed by real data**, not invented strings:
-
-- **Flights** — real AMD⇄BKK quote pulled from Expedia (IndiGo via Mumbai, real flight numbers, times, fare rules, USD price).
-- **Hotels** — real properties per budget tier (Solitaire / Chatrium / Park Hyatt · The Shore at Katathani / Anantara Layan) with live rates, strike-through discounts, real guest rating /10, review counts, and an embedded **live Google map** per hotel + a real "view photos & book on Expedia" deep link.
-- **Transparent price estimate** — a real itemised breakdown (flight + hotels + transfers + activities + visa + service margin) in ₹ and $, per-person and total. The old "price shared later" cop-out is gone.
-- **Traveller Intel** — a Do / Skip / Don't-miss panel synthesised from current traveller-consensus sources (Tripadvisor, US Embassy advisory, Phuket101, Horizon Guides — mirrors r/Thailand · r/phuket), filtered to the client's group, diet and budget.
-- **De-faked** — the WhatsApp button now opens a real `wa.me` deep link with the message pre-filled (no fake "✓ sent" toast). Branding uses the real bundled logo, real phone `+91-79-2329 7232`, real email `info@riseandshinetravel.com`, real accreditations (IATTE · BNI · ADTOI · Gujarat Tourism).
-- The data stamp shows exactly when rates were pulled and that they re-confirm at booking.
-
-The other five destinations still use built-in templates and are clearly labelled **"indicative — live rates on request"**.
-
-> **Data freshness note:** Thailand's live figures were pulled on **2026-05-18** for a sample **15–23 Jun 2026** trip. They are accurate as of that pull, not refreshed on every page load (see upgrade path below).
-
-## Production upgrade — true per-request live data
-
-The static site can't call live APIs on each visit (no backend, no keys it owns). To make every quote live on every load, add **Vercel Functions** (this is already a Vercel project):
-
-| Need | Provider | Notes |
-|------|----------|-------|
-| Live flights | Amadeus Self-Service / Duffel / Kiwi Tequila | free tier; real AMD→dest price + schedule |
-| Live hotels | Amadeus Hotel Search / Hotelbeds / Expedia Rapid (Partner) | availability + rate by tier |
-| Hotel photos / reviews text | Google Places | Expedia MCP returns rating + count only, no photos/text |
-| Visa rules | Sherpa° (joinsherpa) API | no reliable free source otherwise |
-| Reddit validation | Reddit official API (free OAuth app) → Claude to synthesise Do/Skip/Don't-miss | the live version of the Traveller Intel panel |
-| Itinerary brain | Claude API via Vercel AI Gateway | composes days grounded on the real data above; prices validated in code, not by the model |
-
-Flow: `/api/itinerary` fans out flight + hotel + POI + Reddit calls in parallel, caches short-TTL (Vercel runtime cache) so it feels instant, streams **real** progress, returns JSON the existing front-end renders.
+`compose.ts` feeds Claude a **grounded** context (only the real Google Places
+results, plus real flight arrival/departure times and hotel per city) and asks
+for a strict structured schema: each day is a continuous timed schedule
+(`HH:MM`) of blocks — travel, check-in, sightseeing, activity, meal (2-3
+diet-matched restaurant options), leisure. Day 1 starts at the real flight
+arrival; the last day ends at departure. Prices are computed in code, never by
+the model. With no Claude key a deterministic template engine produces the same
+shape.
 
 ## Notes
 
-- **PDF** — generated in-browser via `html2pdf.js`. The bundled logo renders in the PDF; the interactive map iframes are on-screen only (each hotel card also has a clickable map link that works in the PDF).
-- **No tracking** — no analytics or cookies. Privacy-clean for client demos.
-- **Mobile-friendly** — works on phones.
-
-## Updating the content
-
-Thailand's real data lives in the `live: { ... }` object inside `DESTINATIONS.thailand` in `index.html` (flight, hotels-by-tier, traveller intel, FX). To refresh, re-pull the Expedia quotes and update those values + the `updated` date. To add more destinations, copy the `live` schema onto another destination; without it the destination falls back to the indicative template.
+- **PDF** — in-browser via `html2pdf.js`; bundled logo renders; hotel cards
+  carry a clickable map link for the PDF (map iframes are on-screen).
+- **Auth deviation (intentional, documented):** supports
+  `AI_GATEWAY_API_KEY` / `ANTHROPIC_API_KEY` in addition to Vercel OIDC so it
+  runs in local/off-Vercel dev. Vercel tooling prefers OIDC-only; the key path
+  is kept for portability.
+- Built against `ai@6` `generateObject` (verified present & non-deprecated in
+  the installed package).
+- `legacy/` holds the original static v1 for reference.
