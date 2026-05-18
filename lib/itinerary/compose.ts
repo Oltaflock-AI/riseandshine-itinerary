@@ -12,6 +12,8 @@ export interface CityContext {
   arriveDate: string; // YYYY-MM-DD this city's stay begins
   pois: CityPOIs;
   hotelName: string;
+  hotelLat: number;
+  hotelLng: number;
 }
 
 export interface ComposeContext {
@@ -31,6 +33,65 @@ function addDays(iso: string, n: number): string {
 function weekday(iso: string): string {
   return WEEKDAYS[new Date(iso + "T00:00:00Z").getUTCDay()];
 }
+// ── geo helpers ──
+function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371, r = (x: number) => (x * Math.PI) / 180;
+  const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+/** Nearest-neighbour route through places, starting from `from` (the hotel). */
+function route<T extends { lat: number; lng: number }>(from: { lat: number; lng: number }, pts: T[]): T[] {
+  const rem = [...pts], out: T[] = [];
+  let cur = from;
+  while (rem.length) {
+    let bi = 0, bd = Infinity;
+    rem.forEach((p, i) => { const d = km(cur, p); if (d < bd) { bd = d; bi = i; } });
+    const n = rem.splice(bi, 1)[0]; out.push(n); cur = n;
+  }
+  return out;
+}
+
+const TOURISTY = /market|palace|night|floating|tiger|crocodile|zoo|cabaret|walking street/i;
+function isTouristy(p: Place): boolean {
+  return TOURISTY.test(p.name) || TOURISTY.test(p.category) ||
+    (p.reviews != null && p.reviews > 12000);
+}
+
+/** Apply the traveller's touristy/off-beat preference; surface what we drop. */
+function styleFilter(att: Place[], style: TripRequest["travelStyle"]) {
+  if (style === "touristy") {
+    const kept = [...att].sort((a, b) =>
+      (Number(b.rating ?? 0) * Math.log10((b.reviews ?? 10) + 10)) -
+      (Number(a.rating ?? 0) * Math.log10((a.reviews ?? 10) + 10)));
+    return { kept, skipped: [] as Place[] };
+  }
+  if (style === "offbeat") {
+    const touristy = att.filter(isTouristy);
+    const calm = att.filter((p) => !isTouristy(p));
+    const skipped = touristy.slice(0, 3);
+    const kept = calm.length >= 3 ? calm : [...calm, ...touristy.slice(3)];
+    return { kept, skipped };
+  }
+  return { kept: att, skipped: [] as Place[] }; // balanced
+}
+
+const DEST_SKIP: Record<string, string[]> = {
+  Thailand: [
+    "Jet-ski rentals on the beach — the classic fake-damage scam; use the hotel desk.",
+    "Bangla Road photo / “free show” touts — padded bills.",
+    "Gem ‘wholesale resale’ shops — pure scam.",
+  ],
+  Bali: [
+    "Pushy Kuta beach hawkers & ‘free’ bracelets — walk on.",
+    "Renting a scooter without a licence/IDP — fines + insurance void.",
+    "Tanah Lot at mid-day — coach crush; sunset only.",
+  ],
+  Kerala: ["Unbranded ‘ayurveda’ touts near jetties.", "Overpriced spice-shop ‘factory tours’."],
+  Mauritius: ["Beach ‘free catamaran’ pitches that end at a sales room."],
+  Maldives: ["Booking excursions ad-hoc on arrival — pre-book at the resort for half the price."],
+  Rajasthan: ["Aggressive ‘government emporium’ taxi detours.", "Camel-cart ‘photo’ fees agreed after the ride."],
+};
 
 /** Build the grounded prompt context (only real places the model may use). */
 function groundingJSON(req: TripRequest, ctx: ComposeContext) {
@@ -41,19 +102,23 @@ function groundingJSON(req: TripRequest, ctx: ComposeContext) {
     group: { adults: req.adults, children: req.children, childrenAges: req.childrenAges },
     diet: req.diet,
     interests: req.interests,
+    travelStyle: req.travelStyle,
     flightArrival: ctx.arrivalLabel,
     flightDeparture: ctx.departureLabel,
+    note: "cities[] are already ordered from the arrival airport — keep that order; do not backtrack.",
     cities: ctx.cities.map((c) => ({
       name: c.name,
       nights: c.nights,
       hotel: c.hotelName,
+      hotelLat: c.hotelLat,
+      hotelLng: c.hotelLng,
       attractions: c.pois.attractions.map(slim),
       restaurants: c.pois.restaurants.map(slim),
     })),
   });
 }
 function slim(p: Place) {
-  return { name: p.name, category: p.category, lat: p.lat, lng: p.lng, rating: p.rating, tag: p.tag, veg: p.vegFriendly };
+  return { name: p.name, category: p.category, lat: p.lat, lng: p.lng, rating: p.rating, reviews: p.reviews, tag: p.tag, veg: p.vegFriendly };
 }
 function findPlace(ctx: ComposeContext, name: string): Place | null {
   for (const c of ctx.cities)
@@ -62,18 +127,18 @@ function findPlace(ctx: ComposeContext, name: string): Place | null {
   return null;
 }
 
-const SYSTEM = `You are a senior India-based luxury travel planner building a DONE-FOR-YOU hour-by-hour itinerary.
-Hard rules:
-- Use ONLY places from the provided cities[].attractions / cities[].restaurants. Never invent a place.
-- Every day is a continuous timed schedule (24h HH:MM), realistic pacing incl. transit, meals, rest. No gaps, no overlaps.
-- Day 1 begins at the flight arrival time; the final day ends with the departure transfer/flight. Insert an intercity travel block when the city changes.
-- Pace for the group (kids => earlier nights, fewer stops, no nightlife). Respect diet for EVERY meal block: veg/jain => only veg/jain restaurants.
-- meal blocks: kind="meal", give 2-3 real restaurant options (from restaurants[]) in "options".
-- sightseeing/activity blocks: set "place" to the matched attraction.
-- detail = ONE short sentence (max 22 words). title = max 6 words. Keep it visual and skimmable, not an essay.
-- Output strictly matches the schema.`;
+const SYSTEM = `You are a senior India-based luxury travel planner producing a DONE-FOR-YOU, highly detailed, hour-by-hour itinerary the client can follow without any further decisions.
+Non-negotiables:
+- Use ONLY places from cities[].attractions / cities[].restaurants. Never invent a place.
+- TRAVEL-EFFICIENT ROUTING: each day must be a tight geographic loop. Group stops that are close together (use lat/lng); never zig-zag across the city/island; never send them back to an area they already covered. Start each city near its hotel, then radiate outward day by day.
+- Sequence the trip FORWARD from where they land: cities[] is already ordered from the arrival airport — keep that order. Day 1 begins at the exact flight arrival time and place; the final day ends at the departure transfer. Add an intercity transfer block when the city changes.
+- For EVERY day also fill: "efficiency" (one line on why today's routing is tight, e.g. "all stops within the Seminyak–Canggu strip, ≤15 min hops") and "skip" (2-3 lines: what NOT to do today and why — tourist traps, scams, time-wasters, double-ups, or sights that clash with their travel style).
+- Respect travelStyle: touristy = include the marquee icons; offbeat = avoid crowded tourist-trap stops and prefer local/quiet picks (and say so in skip); balanced = a smart mix.
+- Pace for the group: kids ⇒ earlier nights, fewer stops/day, no nightlife. Respect diet for EVERY meal: veg/jain ⇒ only veg/jain restaurants. meal blocks: kind="meal", 2-3 restaurant options near that day's area, vary them across days (don't repeat the same 3 every meal).
+- sightseeing/activity blocks: set "place" to the matched attraction. Be specific and detailed in "detail" (what to actually do/see there, best timing, ≤24 words). title ≤6 words.
+- Continuous timed schedule (24h HH:MM), realistic transit & rest, no gaps/overlaps. Output strictly matches the schema.`;
 
-/** Claude path: structured hour-by-hour days grounded on real data. */
+/** Claude path: structured, travel-efficient hour-by-hour days grounded on real data. */
 export async function composeDaysWithClaude(
   req: TripRequest, ctx: ComposeContext,
 ): Promise<Day[] | null> {
@@ -87,12 +152,12 @@ export async function composeDaysWithClaude(
       prompt:
         `Build the full ${ctx.totalDays}-day itinerary from this real data:\n` +
         groundingJSON(req, ctx) +
-        `\nReturn ${ctx.totalDays} days, dayIndex 0..${ctx.totalDays - 1}, dates from ${req.startDate}.`,
+        `\nReturn exactly ${ctx.totalDays} days, dayIndex 0..${ctx.totalDays - 1}, dates from ${req.startDate}. ` +
+        `Every day MUST include "efficiency" and a non-empty "skip" array.`,
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
       maxRetries: 1,
     });
-    // Re-attach full Place objects (photos/mapsUrl) the model only referenced by name.
-    const days = object.days.map((d) => ({
+    return object.days.map((d) => ({
       ...d,
       blocks: d.blocks.map((b) => ({
         ...b,
@@ -100,93 +165,128 @@ export async function composeDaysWithClaude(
         options: (b.options ?? []).map((o) => findPlace(ctx, o.name) ?? o),
       })),
     }));
-    return days;
   } catch {
     return null;
   }
 }
 
-/** Deterministic fallback: solid hour-by-hour plan with no LLM. */
+/** Deterministic fallback — now geo-efficient, style-aware, with skip + efficiency. */
 export function composeDaysTemplate(req: TripRequest, ctx: ComposeContext): Day[] {
   const days: Day[] = [];
-  let dayIndex = 0;
-  let cityIdx = 0;
-  let dayInCity = 0;
+  const destSkip = DEST_SKIP[ctx.dest.name] ?? ["Anything that pressures an on-the-spot cash payment."];
 
-  const meal = (start: string, end: string, label: string, c: CityContext) => ({
-    start, end, kind: "meal" as const, title: label,
-    detail: `${label} — pick one of the options below (diet-matched).`,
-    place: null,
-    options: c.pois.restaurants.slice(0, 3),
+  // Pre-compute, per city: style-filtered + geo-routed attraction order, and a
+  // restaurant pool routed the same way (so dining is near the day's stops).
+  const cityPlan = ctx.cities.map((c) => {
+    const { kept, skipped } = styleFilter(c.pois.attractions, req.travelStyle);
+    const hotel = { lat: c.hotelLat, lng: c.hotelLng };
+    return {
+      c,
+      routed: route(hotel, kept),
+      rests: route(hotel, c.pois.restaurants),
+      skippedNames: skipped.map((p) => p.name),
+    };
+  });
+
+  let cityIdx = 0, dayInCity = 0, attCursor = 0, restCursor = 0;
+
+  const mealBlock = (start: string, end: string, label: string, plan: (typeof cityPlan)[number]) => {
+    const pool = plan.rests.length ? plan.rests : plan.c.pois.restaurants;
+    const opts: Place[] = [];
+    for (let k = 0; k < 3 && pool.length; k++) opts.push(pool[(restCursor + k) % pool.length]);
+    restCursor += 3;
+    return {
+      start, end, kind: "meal" as const, title: label,
+      detail: `${label} near today's area — choose one (all ${req.diet === "non-veg" ? "" : req.diet + " "}diet-matched).`,
+      place: null, options: opts,
+    };
+  };
+  const sight = (start: string, end: string, p: Place | undefined, kind: "sightseeing" | "activity") => ({
+    start, end, kind,
+    title: p?.name?.slice(0, 42) ?? "Local highlight",
+    detail: p ? `${p.name}${p.tag ? " — " + p.tag : ""}${p.rating ? ` (★ ${p.rating})` : ""}. Allow ~2–3 hrs; go early to beat crowds.` : "Explore a local highlight.",
+    place: p ?? null, options: [] as Place[],
   });
 
   for (let i = 0; i < ctx.totalDays; i++) {
     const date = addDays(req.startDate, i);
-    const c = ctx.cities[Math.min(cityIdx, ctx.cities.length - 1)];
-    const att = c.pois.attractions;
+    const plan = cityPlan[Math.min(cityIdx, cityPlan.length - 1)];
+    const c = plan.c;
     const isFirst = i === 0;
     const isLast = i === ctx.totalDays - 1;
     const cityChange = !isFirst && dayInCity === 0 && cityIdx > 0;
+    const arrTime = ctx.arrivalLabel.split("· ")[1]?.trim() || "13:00";
 
-    let blocks;
+    let blocks, headline, efficiency, skip: string[];
+
     if (isFirst) {
       blocks = [
-        { start: "00:00", end: ctx.arrivalLabel.split("· ")[1] ?? "13:00", kind: "travel" as const,
-          title: `Fly to ${ctx.dest.arrivalCity}`, detail: `Arrive ${ctx.arrivalLabel}. Private AC transfer to ${c.hotelName}.`,
-          place: null, options: [] },
+        { start: "00:00", end: arrTime, kind: "travel" as const, title: `Land in ${ctx.dest.arrivalCity}`,
+          detail: `Arrive ${ctx.arrivalLabel}. Fast-track + private AC transfer straight to ${c.hotelName}.`, place: null, options: [] },
         { start: "15:00", end: "16:00", kind: "checkin" as const, title: "Hotel check-in",
-          detail: `Check in at ${c.hotelName}, freshen up and rest.`, place: null, options: [] },
-        { start: "16:30", end: "18:30", kind: "sightseeing" as const, title: att[0]?.name ?? "Easy first outing",
-          detail: att[0]?.tag ? `${att[0].name} — ${att[0].tag}.` : `Gentle first look at ${c.name}.`,
-          place: att[0] ?? null, options: [] },
-        meal("19:30", "21:00", "Dinner", c),
+          detail: `Check in at ${c.hotelName}, freshen up — keep day 1 light after the flight.`, place: null, options: [] },
+        sight("16:30", "18:30", plan.routed[0], "sightseeing"),
+        mealBlock("19:30", "21:00", "Dinner", plan),
       ];
+      attCursor = 1;
+      headline = `Land — settle into ${c.name}`;
+      efficiency = `Nothing far on day 1: one stop a short hop from ${c.hotelName}, then dinner nearby.`;
+      skip = ["Don't over-schedule arrival day — jet lag + transfer eats the afternoon.", destSkip[0]];
     } else if (isLast) {
       blocks = [
-        meal("08:00", "09:00", "Breakfast", c),
-        { start: "09:30", end: "11:00", kind: "leisure" as const, title: "Last-minute leisure",
-          detail: "Pool / souvenir shopping near the hotel.", place: null, options: [] },
-        { start: "12:00", end: "13:00", kind: "transfer" as const, title: "Airport transfer",
-          detail: "Private AC transfer to the airport.", place: null, options: [] },
-        { start: "13:00", end: "23:59", kind: "travel" as const, title: "Return flight",
+        mealBlock("08:00", "09:00", "Breakfast", plan),
+        { start: "09:30", end: "11:00", kind: "leisure" as const, title: "Pack & last stroll",
+          detail: "Pool time or a short walk near the hotel — nothing that risks the flight.", place: null, options: [] },
+        { start: "11:30", end: "12:30", kind: "transfer" as const, title: "Airport transfer",
+          detail: "Private AC transfer to the airport (buffer for traffic + check-in).", place: null, options: [] },
+        { start: "12:30", end: "23:59", kind: "travel" as const, title: "Return flight",
           detail: `Departure ${ctx.departureLabel}.`, place: null, options: [] },
       ];
+      headline = "Departure";
+      efficiency = "Zero detours — only hotel-area time before the airport run.";
+      skip = ["No far-flung sights today — a missed flight isn't worth one more temple.", "Skip last-minute ‘duty-free’ gem/electronics ‘deals’."];
     } else if (cityChange) {
       blocks = [
-        meal("08:00", "09:00", "Breakfast", c),
-        { start: "09:30", end: "13:00", kind: "transfer" as const, title: `Travel to ${c.name}`,
-          detail: `Scenic transfer to ${c.name}; check in at ${c.hotelName}.`, place: null, options: [] },
-        meal("13:30", "14:30", "Lunch", c),
-        { start: "15:00", end: "18:00", kind: "sightseeing" as const, title: att[0]?.name ?? "Local highlight",
-          detail: att[0]?.tag ? `${att[0].name} — ${att[0].tag}.` : `First highlight in ${c.name}.`,
-          place: att[0] ?? null, options: [] },
-        meal("19:30", "21:00", "Dinner", c),
+        mealBlock("08:00", "09:00", "Breakfast", plan),
+        { start: "09:30", end: "13:00", kind: "transfer" as const, title: `Transfer to ${c.name}`,
+          detail: `Scenic transfer to ${c.name}; check in at ${c.hotelName}. Stops chosen on-route, not backtracking.`, place: null, options: [] },
+        mealBlock("13:30", "14:30", "Lunch", plan),
+        sight("15:00", "18:00", plan.routed[0], "sightseeing"),
+        mealBlock("19:30", "21:00", "Dinner", plan),
       ];
+      attCursor = 1;
+      headline = `Onward to ${c.name}`;
+      efficiency = `Moved with the route (no backtrack); first ${c.name} stop is the one closest to ${c.hotelName}.`;
+      skip = [`Skip add-on detours during the transfer that double the drive.`, destSkip[Math.min(1, destSkip.length - 1)]];
     } else {
-      const a1 = att[(dayInCity * 2) % Math.max(1, att.length)];
-      const a2 = att[(dayInCity * 2 + 1) % Math.max(1, att.length)];
+      const a1 = plan.routed[attCursor % Math.max(1, plan.routed.length)];
+      const a2 = plan.routed[(attCursor + 1) % Math.max(1, plan.routed.length)];
+      attCursor += 2;
+      const hop = a1 && a2 ? km(a1, a2) : 0;
       blocks = [
-        meal("08:00", "09:00", "Breakfast", c),
-        { start: "09:00", end: "12:30", kind: "sightseeing" as const, title: a1?.name ?? "Morning sights",
-          detail: a1?.tag ? `${a1.name} — ${a1.tag}.` : `Explore ${a1?.name ?? c.name}.`,
-          place: a1 ?? null, options: [] },
-        meal("12:30", "14:00", "Lunch", c),
-        { start: "14:00", end: "17:30", kind: "activity" as const, title: a2?.name ?? "Afternoon activity",
-          detail: a2?.tag ? `${a2.name} — ${a2.tag}.` : `Continue with ${a2?.name ?? "a local experience"}.`,
-          place: a2 ?? null, options: [] },
+        mealBlock("08:00", "09:00", "Breakfast", plan),
+        sight("09:00", "12:30", a1, "sightseeing"),
+        mealBlock("12:30", "14:00", "Lunch", plan),
+        sight("14:00", "17:30", a2, "activity"),
         { start: "17:30", end: "19:00", kind: "leisure" as const, title: "Leisure / pool",
-          detail: "Downtime at the hotel or a short stroll.", place: null, options: [] },
-        meal("19:30", "21:00", "Dinner", c),
+          detail: "Downtime back at the hotel or a sunset spot near today's area.", place: null, options: [] },
+        mealBlock("19:30", "21:00", "Dinner", plan),
       ];
+      headline = `${c.name} — ${a1?.category ?? "highlights"} day`;
+      efficiency = a1 && a2
+        ? `Today's two stops are ~${hop.toFixed(1)} km apart — one tight loop, no cross-town backtracking.`
+        : `Compact ${c.name} day kept close to the hotel.`;
+      skip = [];
+      if (plan.skippedNames.length && dayInCity === 0)
+        skip.push(`Deliberately skipping (off-beat pick): ${plan.skippedNames.join(", ")} — tourist crush.`);
+      skip.push(destSkip[(i + 1) % destSkip.length]);
+      if (req.children > 0) skip.push("No late nightlife — group has children; nights kept early.");
     }
 
-    days.push({ dayIndex, date, weekday: weekday(date), cityLabel: c.name,
-      headline: isFirst ? `Arrive ${ctx.dest.arrivalCity}` : isLast ? "Departure" : cityChange ? `Hello ${c.name}` : `${c.name} highlights`,
-      blocks });
+    days.push({ dayIndex: i, date, weekday: weekday(date), cityLabel: c.name, headline, efficiency, skip, blocks });
 
-    dayIndex++;
     dayInCity++;
-    if (!isFirst && dayInCity >= c.nights && cityIdx < ctx.cities.length - 1) { cityIdx++; dayInCity = 0; }
+    if (!isFirst && dayInCity >= c.nights && cityIdx < ctx.cities.length - 1) { cityIdx++; dayInCity = 0; attCursor = 0; }
   }
   return days;
 }

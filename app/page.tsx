@@ -25,7 +25,8 @@ export default function Page() {
   const [f, setF] = useState({
     clientName: "Rajesh Sharma", clientPhone: "+91 98250 11111",
     destinationKey: "thailand", durationNights: 7, budgetTier: 4,
-    startDate: "2026-06-15", adults: 2, children: 2, diet: "veg", visaNeeded: true,
+    startDate: "2026-06-15", adults: 2, children: 2, diet: "veg",
+    travelStyle: "balanced", visaNeeded: true,
   });
   const [interests, setInterests] = useState<string[]>(["Beach", "Family"]);
   const [loading, setLoading] = useState(false);
@@ -138,6 +139,12 @@ export default function Page() {
               <option value="non-veg">Non-Vegetarian</option>
               <option value="mixed">Mixed</option>
             </select></div>
+          <div className="fg"><label>Travel style</label>
+            <select title="Travel style" value={f.travelStyle} onChange={(e) => up("travelStyle", e.target.value)}>
+              <option value="touristy">Touristy — hit the famous icons</option>
+              <option value="balanced">Balanced — icons + local mix</option>
+              <option value="offbeat">Off-beat — skip the tourist crush</option>
+            </select></div>
           <div className="fg"><label>Interests</label>
             <div className="chips">
               {INTERESTS.map((i) => (
@@ -229,7 +236,14 @@ function DayCard({ d }: { d: Day }) {
         <div><span className="dn">DAY {d.dayIndex + 1}</span><span className="dt">{d.headline}</span></div>
         <div className="dd">{d.weekday}, {d.date} · {d.cityLabel}</div>
       </div>
+      {d.efficiency && <div className="effic">🧭 <b>Travel-efficient:</b> {d.efficiency}</div>}
       <div className="tl">{d.blocks.map((b, i) => <Block key={i} b={b} />)}</div>
+      {d.skip?.length > 0 && (
+        <div className="skip">
+          <div className="sl">⛔ Skip today</div>
+          <ul>{d.skip.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -316,19 +330,32 @@ function Itinerary({ r, docRef, onPDF, onWA }: {
             <div className="fs" style={{ marginTop: 8 }}>{r.flights.fareNote}</div>
           </div>
 
-          <div className="h2" style={{ marginTop: 18 }}>Transparent Price Estimate</div>
+          <div className="h2" style={{ marginTop: 18 }}>Price — Real Fetched Rates</div>
+          {r.pricing.priced === "live"
+            ? <span className="live"><span className="dot" />Flights &amp; hotels = live fetched totals (exact)</span>
+            : <span className="live warn"><span className="dot" />Flights &amp; hotels = sample — add Amadeus keys for live exact rates</span>}
           <table className="ptab">
             <tbody>
-              {r.pricing.rows.map((row, i) => (
+              {r.pricing.liveRows.map((row, i) => (
                 <tr key={i}><td>{row.label}</td><td>{inr(row.usd, fx)}</td></tr>
               ))}
-              <tr className="sub"><td>Rise &amp; Shine planning &amp; service (12%)</td><td>{inr(r.pricing.serviceUSD, fx)}</td></tr>
+              <tr className="gr"><td>Live-priced core (flights + hotels)</td><td>{inr(r.pricing.liveCoreUSD, fx)}</td></tr>
+            </tbody>
+          </table>
+          <div className="subm" style={{ margin: "10px 0 4px" }}>Indicative add-ons — confirmed exactly on the booking call:</div>
+          <table className="ptab">
+            <tbody>
+              {r.pricing.addOnRows.map((row, i) => (
+                <tr className="sub" key={i}><td>{row.label}</td><td>≈ {inr(row.usd, fx)}</td></tr>
+              ))}
+              <tr className="sub"><td>Rise &amp; Shine planning &amp; service (12%)</td><td>≈ {inr(r.pricing.serviceUSD, fx)}</td></tr>
               <tr className="gr"><td>Estimated package total</td><td>{inr(r.pricing.grandUSD, fx)}</td></tr>
             </tbody>
           </table>
           <div className="ppp">
             <div><div className="l">Approx. per person ({r.pricing.pax} sharing)</div>
-              <div style={{ fontSize: 11, opacity: .7 }}>≈ ${Math.round(r.pricing.perPersonUSD).toLocaleString("en-US")} · FX ₹{fx}/$</div></div>
+              <div style={{ fontSize: 11, opacity: .7 }}>
+                live core {inr(r.pricing.liveCoreUSD / r.pricing.pax, fx)} + add-ons · FX ₹{fx}/$</div></div>
             <div className="a">{inr(r.pricing.perPersonUSD, fx)}</div>
           </div>
         </div>

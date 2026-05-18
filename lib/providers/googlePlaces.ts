@@ -68,18 +68,30 @@ export interface CityPOIs {
 /** Attractions + diet-aware restaurants around a city centre. */
 export async function cityPOIs(
   cityName: string, lat: number, lng: number, diet: string,
+  travelStyle: "touristy" | "balanced" | "offbeat" = "balanced",
 ): Promise<CityPOIs> {
   const dietWord =
     diet === "jain" ? "Jain vegetarian" :
     diet === "veg" ? "pure vegetarian Indian" :
     diet === "non-veg" ? "popular" : "vegetarian and";
 
-  const [att, rest] = await Promise.all([
-    textSearch(`top tourist attractions and monuments in ${cityName}`, lat, lng, 14),
-    textSearch(`best ${dietWord} restaurants in ${cityName}`, lat, lng, 12),
+  const attQuery =
+    travelStyle === "offbeat"
+      ? `hidden gems, local experiences, nature and non-touristy things to do in ${cityName}`
+      : travelStyle === "touristy"
+        ? `most famous must-see landmarks and monuments in ${cityName}`
+        : `top attractions, monuments and local highlights in ${cityName}`;
+
+  const [attRaw, rest] = await Promise.all([
+    textSearch(attQuery, lat, lng, 16),
+    textSearch(`best ${dietWord} restaurants in ${cityName}`, lat, lng, 14),
   ]);
 
-  if (att && rest) return { attractions: att, restaurants: rest, source: "live" };
+  // Drop non-sight businesses the text search drags in (agencies, shops, etc.)
+  const JUNK = /agency|real estate|car rental|store|lodging|atm|bank|finance|insurance|consultant|office/i;
+  const att = attRaw?.filter((p) => p.rating != null && !JUNK.test(p.category)) ?? null;
+
+  if (att && att.length >= 4 && rest) return { attractions: att, restaurants: rest, source: "live" };
   return { ...sampleCity(cityName, lat, lng), source: "sample" };
 }
 

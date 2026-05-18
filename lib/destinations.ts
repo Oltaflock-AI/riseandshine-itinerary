@@ -126,13 +126,51 @@ export const DESTINATIONS: Record<string, Destination> = {
   },
 };
 
+/** Arrival airport coordinates — used to sequence the trip from where you land. */
+const AIRPORTS: Record<string, { lat: number; lng: number }> = {
+  BKK: { lat: 13.69, lng: 100.7501 },
+  COK: { lat: 10.152, lng: 76.4019 },
+  MRU: { lat: -20.4302, lng: 57.6836 },
+  MLE: { lat: 4.1918, lng: 73.5291 },
+  JAI: { lat: 26.8242, lng: 75.8122 },
+  DPS: { lat: -8.7467, lng: 115.1668 },
+};
+
+function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371, toR = (x: number) => (x * Math.PI) / 180;
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Cities sequenced from the arrival airport: you land, the FIRST leg is the
+ * city nearest the airport, then onward by proximity (no backtracking).
+ */
+export function orderedCities(d: Destination): CityLeg[] {
+  const ap = AIRPORTS[d.arrivalAirport];
+  if (!ap || d.cities.length < 2) return d.cities;
+  const remaining = [...d.cities];
+  const path: CityLeg[] = [];
+  let cur = ap;
+  while (remaining.length) {
+    let bi = 0, bd = Infinity;
+    remaining.forEach((c, i) => { const dist = haversine(cur, c); if (dist < bd) { bd = dist; bi = i; } });
+    const next = remaining.splice(bi, 1)[0];
+    path.push(next);
+    cur = next;
+  }
+  return path;
+}
+
 /** Split total nights across city legs by weight (≥1 night each, remainder to largest). */
-export function splitNights(d: Destination, totalNights: number): number[] {
-  const n = d.cities.length;
+export function splitNights(cities: CityLeg[], totalNights: number): number[] {
+  const n = cities.length;
   if (n === 1) return [totalNights];
-  const base = d.cities.map((c) => Math.max(1, Math.floor(totalNights * c.weight)));
+  const base = cities.map((c) => Math.max(1, Math.floor(totalNights * c.weight)));
   let used = base.reduce((a, b) => a + b, 0);
-  let i = d.cities.reduce((mi, c, idx, arr) => (c.weight > arr[mi].weight ? idx : mi), 0);
+  const i = cities.reduce((mi, c, idx, arr) => (c.weight > arr[mi].weight ? idx : mi), 0);
   while (used < totalNights) { base[i]++; used++; }
   while (used > totalNights) { const j = base.indexOf(Math.max(...base)); if (base[j] > 1) { base[j]--; used--; } else break; }
   return base;

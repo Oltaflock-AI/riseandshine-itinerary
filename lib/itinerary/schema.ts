@@ -39,6 +39,8 @@ export const DaySchema = z.object({
   weekday: z.string(),
   cityLabel: z.string().describe("e.g. Bangkok / Phuket — Kata"),
   headline: z.string().describe("≤7 words, the theme of the day"),
+  efficiency: z.string().describe("one line on why this day is travel-efficient, e.g. 'tight Seminyak↔Canggu loop, ≤15 min hops'"),
+  skip: z.array(z.string()).default([]).describe("what to deliberately NOT do today and why (1 short line each)"),
   blocks: z.array(TimeBlockSchema),
 });
 export type Day = z.infer<typeof DaySchema>;
@@ -89,18 +91,31 @@ export const TripRequestSchema = z.object({
   childrenAges: z.array(z.number()).default([]),
   diet: z.enum(["veg", "jain", "non-veg", "mixed"]).default("veg"),
   interests: z.array(z.string()).default([]),
+  travelStyle: z.enum(["touristy", "balanced", "offbeat"]).default("balanced"),
   visaNeeded: z.boolean().default(false),
 });
 export type TripRequest = z.infer<typeof TripRequestSchema>;
 
+export const PriceRow = z.object({
+  label: z.string(),
+  usd: z.number(),
+  kind: z.enum(["live", "estimate"]),
+});
 export const PricingSchema = z.object({
   fx: z.number(),
-  rows: z.array(z.object({ label: z.string(), usd: z.number() })),
+  /** exact, fetched line items (flights + hotels) */
+  liveRows: z.array(PriceRow),
+  liveCoreUSD: z.number(),
+  /** clearly-indicative add-ons, confirmed on the booking call */
+  addOnRows: z.array(PriceRow),
+  addOnsUSD: z.number(),
   serviceUSD: z.number(),
   grandUSD: z.number(),
   perPersonUSD: z.number(),
   rooms: z.number(),
   pax: z.number(),
+  /** "live" only when BOTH flights & hotels came from a live provider */
+  priced: z.enum(["live", "sample"]),
 });
 export type Pricing = z.infer<typeof PricingSchema>;
 

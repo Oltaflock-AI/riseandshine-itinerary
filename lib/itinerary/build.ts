@@ -1,4 +1,4 @@
-import { DESTINATIONS, splitNights } from "@/lib/destinations";
+import { DESTINATIONS, orderedCities, splitNights } from "@/lib/destinations";
 import { liveFlights, liveHotels } from "@/lib/providers/amadeus";
 import { cityPOIs } from "@/lib/providers/googlePlaces";
 import { redditSignal } from "@/lib/providers/reddit";
@@ -16,59 +16,77 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function pricing(req: TripRequest, perAdultUSD: number, hotelUSD: number): Pricing {
+/**
+ * Pricing is split so nothing fake-precise is implied:
+ *  - liveRows  = flights + hotels, the ACTUAL fetched totals (exact when the
+ *    Amadeus provider is live; sample numbers are flagged via `priced`).
+ *  - addOnRows = clearly-indicative extras, confirmed on the booking call.
+ */
+function pricing(
+  req: TripRequest, perAdultUSD: number, hotelUSD: number,
+  rooms_: number, priced: "live" | "sample",
+): Pricing {
   const fx = fxRate();
   const pax = req.adults + req.children;
-  const rooms = Math.max(1, Math.ceil(pax / 3));
-  const flight = perAdultUSD * pax;
-  const hotels = hotelUSD * rooms;
-  const transfers = 90 * pax;
-  const activities = 120 * pax;
-  const visa = req.visaNeeded ? 30 * pax : 0;
-  const insurance = 8 * pax;
-  const rows = [
-    { label: `Flights — ${pax} traveller${pax > 1 ? "s" : ""}`, usd: flight },
-    { label: `Hotels — ${rooms} room${rooms > 1 ? "s" : ""}`, usd: hotels },
-    { label: "Private AC transfers & intercity", usd: transfers },
-    { label: "Tours & activities", usd: activities },
-    ...(visa ? [{ label: `Visa assistance (${pax} pax)`, usd: visa }] : []),
-    { label: `Travel insurance (${pax} pax)`, usd: insurance },
+  const rooms = rooms_;
+  const flight = Math.round(perAdultUSD * pax);
+  const hotels = Math.round(hotelUSD);
+
+  const liveRows = [
+    { label: `Flights — ${pax} traveller${pax > 1 ? "s" : ""} (fetched fare)`, usd: flight, kind: "live" as const },
+    { label: `Hotels — ${rooms} room${rooms > 1 ? "s" : ""}, all nights (fetched rate)`, usd: hotels, kind: "live" as const },
   ];
-  const subtotal = rows.reduce((s, r) => s + r.usd, 0);
-  const serviceUSD = Math.round(subtotal * 0.12);
-  const grandUSD = subtotal + serviceUSD;
-  return { fx, rows, serviceUSD, grandUSD, perPersonUSD: grandUSD / pax, rooms, pax };
+  const liveCoreUSD = flight + hotels;
+
+  const visa = req.visaNeeded ? 30 * pax : 0;
+  const addOnRows = [
+    { label: "Private AC transfers & intercity", usd: 90 * pax, kind: "estimate" as const },
+    { label: "Tours, entries & activities", usd: 120 * pax, kind: "estimate" as const },
+    ...(visa ? [{ label: `Visa assistance (${pax} pax)`, usd: visa, kind: "estimate" as const }] : []),
+    { label: `Travel insurance (${pax} pax)`, usd: 8 * pax, kind: "estimate" as const },
+  ];
+  const addOnsUSD = addOnRows.reduce((s, r) => s + r.usd, 0);
+
+  const serviceUSD = Math.round((liveCoreUSD + addOnsUSD) * 0.12);
+  const grandUSD = liveCoreUSD + addOnsUSD + serviceUSD;
+  return {
+    fx, liveRows, liveCoreUSD, addOnRows, addOnsUSD,
+    serviceUSD, grandUSD, perPersonUSD: grandUSD / pax, rooms, pax, priced,
+  };
 }
 
 export async function buildItinerary(req: TripRequest): Promise<ItineraryResult> {
   const dest = DESTINATIONS[req.destinationKey] ?? DESTINATIONS.thailand;
   const totalDays = req.durationNights + 1;
   const endDate = addDays(req.startDate, req.durationNights);
-  const nights = splitNights(dest, req.durationNights);
+  // Sequence the trip FROM where they land — nearest city to the airport first.
+  const cityLegs = orderedCities(dest);
+  const nights = splitNights(cityLegs, req.durationNights);
 
   // ── Parallel fan-out ──
   const [flightsRes, hotelsRes, reddit, ...poiResults] = await Promise.all([
     liveFlights(dest.originAirport, dest.arrivalAirport, req.startDate, endDate, req.adults),
-    liveHotels(dest.cities[0].hotelCity, dest.cities[0].lat, dest.cities[0].lng,
+    liveHotels(cityLegs[0].hotelCity, cityLegs[0].lat, cityLegs[0].lng,
       req.startDate, endDate, req.adults, req.durationNights),
     redditSignal(dest.name),
-    ...dest.cities.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet)),
+    ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet, req.travelStyle)),
   ]);
 
   const flights = flightsRes ?? sampleFlights(dest.arrivalCity);
   const hotels =
     hotelsRes && hotelsRes.length
-      ? hotelsRes.slice(0, dest.cities.length).map((h, i) => ({ ...h, nights: nights[i] ?? h.nights }))
+      ? hotelsRes.slice(0, cityLegs.length).map((h, i) => ({ ...h, nights: nights[i] ?? h.nights }))
       : sampleHotels(dest.key, req.budgetTier, nights);
 
-  // City contexts for the engine
+  // City contexts for the engine (carry hotel coords for geo-efficient routing)
   let cursor = req.startDate;
-  const cities: CityContext[] = dest.cities.map((c, i) => {
+  const cities: CityContext[] = cityLegs.map((c, i) => {
     const arriveDate = cursor;
     cursor = addDays(cursor, nights[i]);
     return {
       name: c.name, nights: nights[i], arriveDate,
       pois: poiResults[i], hotelName: hotels[i]?.name ?? `${c.name} hotel`,
+      hotelLat: hotels[i]?.lat ?? c.lat, hotelLng: hotels[i]?.lng ?? c.lng,
     };
   });
 
@@ -85,8 +103,12 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
   const engineSource: "live" | "sample" = claudeDays ? "live" : "sample";
   const days = claudeDays ?? composeDaysTemplate(req, ctx);
 
-  const hotelTotalUSD = hotels.reduce((s, h) => s + h.totalUSD, 0);
-  const price = pricing(req, flights.perAdultUSD, hotelTotalUSD);
+  const pax = req.adults + req.children;
+  const rooms = Math.max(1, Math.ceil(pax / 3));
+  const hotelTotalUSD = hotels.reduce((s, h) => s + h.totalUSD, 0) * rooms;
+  const pricedLive: "live" | "sample" =
+    flights.source === "live" && (hotels[0]?.source ?? "sample") === "live" ? "live" : "sample";
+  const price = pricing(req, flights.perAdultUSD, hotelTotalUSD, rooms, pricedLive);
 
   const groupLabel =
     `${req.adults} Adult${req.adults > 1 ? "s" : ""}` +

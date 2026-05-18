@@ -146,3 +146,9 @@ button{font-family:inherit;cursor:pointer}
 @keyframes sp{to{transform:rotate(360deg)}}
 .foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:14px 36px}
 .iata{background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:7px}
+
+.effic{margin:0 14px 6px;background:#eef6f5;border:1px solid #d6e8e6;border-radius:9px;padding:7px 11px;font-size:12px;color:#0d6e6e}
+.skip{margin:0 14px 14px;background:#fff4f3;border:1px solid #f3d4d1;border-radius:9px;padding:9px 12px}
+.skip .sl{font-size:12px;font-weight:800;color:#dc2626;margin-bottom:5px}
+.skip ul{margin:0;padding-left:16px}
+.skip li{font-size:12px;line-height:1.5;color:#7a3b38;margin-bottom:4px}
