@@ -55,21 +55,31 @@ export const FlightLeg = z.object({
   label: z.string(), route: z.string(), flights: z.string(),
   dep: z.string(), arr: z.string(), dur: z.string(), stops: z.string(),
 });
+export const FlightAlt = z.object({
+  carrier: z.string(), perAdultUSD: z.number(),
+  outbound: FlightLeg, inbound: FlightLeg, fareNote: z.string(),
+});
+export type FlightAlt = z.infer<typeof FlightAlt>;
+
 export const Flights = z.object({
   carrier: z.string(),
   outbound: FlightLeg, inbound: FlightLeg,
   fareNote: z.string(),
   perAdultUSD: z.number(),
   source: z.enum(["live", "sample"]),
+  alternatives: z.array(FlightAlt).default([]),
 });
 export type Flights = z.infer<typeof Flights>;
 
-export const Hotel = z.object({
+const HotelBase = z.object({
   name: z.string(), area: z.string(), stars: z.number(),
   rating: z.number(), reviews: z.number(), nights: z.number(),
   totalUSD: z.number(), strikeUSD: z.number().nullable(),
   lat: z.number(), lng: z.number(), bookUrl: z.string(),
   photoUrl: z.string().nullable(), source: z.enum(["live", "sample"]),
+});
+export const Hotel = HotelBase.extend({
+  alternatives: z.array(HotelBase).default([]),
 });
 export type Hotel = z.infer<typeof Hotel>;
 
@@ -82,17 +92,22 @@ export type Intel = z.infer<typeof Intel>;
 export const TripRequestSchema = z.object({
   clientName: z.string().default("Valued Guest"),
   clientPhone: z.string().default(""),
+  email: z.string().email().optional(),
   destinationKey: z.string(),
   durationNights: z.number().int().min(2).max(20),
   budgetTier: z.union([z.literal(3), z.literal(4), z.literal(5)]),
   startDate: z.string(),
   adults: z.number().int().min(1).max(20),
-  children: z.number().int().min(0).max(12).default(0),
+  children: z.number().int().min(0).max(10).default(0), // ages 6–11
+  infants:  z.number().int().min(0).max(6).default(0),  // ages 0–5
   childrenAges: z.array(z.number()).default([]),
   diet: z.enum(["veg", "jain", "non-veg", "mixed"]).default("veg"),
   interests: z.array(z.string()).default([]),
   travelStyle: z.enum(["touristy", "balanced", "offbeat"]).default("balanced"),
+  groupType: z.enum(["family", "solo", "honeymoon", "bikers"]).default("family"),
   visaNeeded: z.boolean().default(false),
+  flightAssist: z.boolean().default(false),
+  hotelAssist:  z.boolean().default(false),
 });
 export type TripRequest = z.infer<typeof TripRequestSchema>;
 
@@ -131,5 +146,11 @@ export interface ItineraryResult {
   days: Day[];
   intel: Intel;
   pricing: Pricing;
-  freshness: Record<"flights" | "hotels" | "places" | "intel" | "engine", "live" | "sample">;
+  freshness: {
+    flights: "live" | "sample" | "indicative";
+    hotels:  "live" | "sample" | "indicative";
+    places:  "live" | "sample";
+    intel:   "live" | "sample";
+    engine:  "live" | "sample";
+  };
 }

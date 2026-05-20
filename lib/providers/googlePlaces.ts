@@ -69,18 +69,24 @@ export interface CityPOIs {
 export async function cityPOIs(
   cityName: string, lat: number, lng: number, diet: string,
   travelStyle: "touristy" | "balanced" | "offbeat" = "balanced",
+  groupType: "family" | "solo" | "honeymoon" | "bikers" = "family",
 ): Promise<CityPOIs> {
   const dietWord =
     diet === "jain" ? "Jain vegetarian" :
     diet === "veg" ? "pure vegetarian Indian" :
     diet === "non-veg" ? "popular" : "vegetarian and";
 
-  const attQuery =
-    travelStyle === "offbeat"
-      ? `hidden gems, local experiences, nature and non-touristy things to do in ${cityName}`
-      : travelStyle === "touristy"
-        ? `most famous must-see landmarks and monuments in ${cityName}`
-        : `top attractions, monuments and local highlights in ${cityName}`;
+  // groupType drives the base attraction-query phrasing…
+  const baseByGroup =
+    groupType === "family"    ? `family-friendly attractions and parks in ${cityName}` :
+    groupType === "solo"      ? `popular cafes, landmarks and viewpoints in ${cityName}` :
+    groupType === "honeymoon" ? `romantic viewpoints, sunset spots and fine dining in ${cityName}` :
+                                `scenic drives, bike stops and viewpoints around ${cityName}`;
+  // …travelStyle modulates it.
+  const modifier =
+    travelStyle === "offbeat"  ? "off-beat, local, hidden-gem " :
+    travelStyle === "touristy" ? "must-see " : "";
+  const attQuery = modifier + baseByGroup;
 
   const [attRaw, rest] = await Promise.all([
     textSearch(attQuery, lat, lng, 16),

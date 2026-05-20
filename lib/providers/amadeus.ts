@@ -58,15 +58,14 @@ export async function liveFlights(
       returnDate: returnISO,
       adults: String(Math.max(1, adults)),
       currencyCode: "USD",
-      max: "5",
+      max: "10",
     });
     const r = await fetch(`${BASE()}/v2/shopping/flight-offers?${qs}`, {
       headers: { Authorization: `Bearer ${t}` },
     });
     if (!r.ok) return null;
     const j = await r.json();
-    const offer = j.data?.[0];
-    if (!offer) return null;
+    if (!j.data?.length) return null;
     const carriers = j.dictionaries?.carriers ?? {};
     const leg = (it: any, label: string) => {
       const segs = it.segments;
@@ -82,17 +81,32 @@ export async function liveFlights(
         stops: segs.length === 1 ? "Non-stop" : `${segs.length - 1} stop`,
       };
     };
-    const carrierName =
-      carriers[offer.itineraries[0].segments[0].carrierCode] ||
-      offer.itineraries[0].segments[0].carrierCode;
-    const perAdult = Number(offer.travelerPricings?.[0]?.price?.total ?? offer.price.total);
+    // Map up to 5 deduped offers; cheapest = primary, rest = alternatives.
+    const mapOffer = (o: any) => {
+      const cName = carriers[o.itineraries[0].segments[0].carrierCode] ||
+        o.itineraries[0].segments[0].carrierCode;
+      const pa = Number(o.travelerPricings?.[0]?.price?.total ?? o.price.total);
+      return {
+        carrier: cName,
+        outbound: leg(o.itineraries[0], "Outbound"),
+        inbound: leg(o.itineraries[1], "Return"),
+        fareNote: `${o.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin ?? "ECONOMY"} · live Amadeus fare`,
+        perAdultUSD: Math.round(pa),
+      };
+    };
+    const offers = (j.data ?? []).slice(0, 8).map(mapOffer);
+    // dedupe by flight-number set
+    const seen = new Set<string>();
+    const deduped = offers.filter((o: any) => {
+      const k = o.outbound.flights + "|" + o.inbound.flights;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    }).slice(0, 5);
+    const primary = deduped[0];
     return {
-      carrier: carrierName,
-      outbound: leg(offer.itineraries[0], "Outbound"),
-      inbound: leg(offer.itineraries[1], "Return"),
-      fareNote: `${offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin ?? "ECONOMY"} · live Amadeus fare`,
-      perAdultUSD: Math.round(perAdult),
-      source: "live",
+      ...primary,
+      source: "live" as const,
+      alternatives: deduped.slice(1),
     };
   } catch {
     return null;
@@ -149,9 +163,15 @@ export async function liveHotels(
           bookUrl: `https://www.google.com/search?q=${encodeURIComponent(d.hotel.name + " " + cityQuery)}`,
           photoUrl: null,
           source: "live" as const,
+          alternatives: [],
         };
       });
-    return mapped.length ? mapped : null;
+    if (!mapped.length) return null;
+    // Sort cheapest-first; primary = mapped[0]; pack the next 4 as primary.alternatives
+    mapped.sort((a, b) => a.totalUSD - b.totalUSD);
+    const altsForPrimary = mapped.slice(1, 5).map(({ alternatives: _a, ...rest }) => rest);
+    mapped[0] = { ...mapped[0], alternatives: altsForPrimary };
+    return mapped;
   } catch {
     return null;
   }

@@ -27,13 +27,15 @@ function pricing(
   rooms_: number, priced: "live" | "sample",
 ): Pricing {
   const fx = fxRate();
-  const pax = req.adults + req.children;
+  const paxForHotels = req.adults + req.children;          // infants share bed
+  const paxForFlight = req.adults + req.children;          // lap-infant ≈ free
+  const pax = paxForHotels;
   const rooms = rooms_;
-  const flight = Math.round(perAdultUSD * pax);
+  const flight = Math.round(perAdultUSD * paxForFlight);
   const hotels = Math.round(hotelUSD);
 
   const liveRows = [
-    { label: `Flights — ${pax} traveller${pax > 1 ? "s" : ""} (fetched fare)`, usd: flight, kind: "live" as const },
+    { label: `Flights — ${paxForFlight} traveller${paxForFlight > 1 ? "s" : ""} (fetched fare)`, usd: flight, kind: "live" as const },
     { label: `Hotels — ${rooms} room${rooms > 1 ? "s" : ""}, all nights (fetched rate)`, usd: hotels, kind: "live" as const },
   ];
   const liveCoreUSD = flight + hotels;
@@ -43,6 +45,8 @@ function pricing(
     { label: "Private AC transfers & intercity", usd: 90 * pax, kind: "estimate" as const },
     { label: "Tours, entries & activities", usd: 120 * pax, kind: "estimate" as const },
     ...(visa ? [{ label: `Visa assistance (${pax} pax)`, usd: visa, kind: "estimate" as const }] : []),
+    ...(req.flightAssist ? [{ label: "Flight booking & change support", usd: 25 * paxForFlight, kind: "estimate" as const }] : []),
+    ...(req.hotelAssist  ? [{ label: "Hotel booking & front-desk support", usd: 20 * rooms, kind: "estimate" as const }] : []),
     { label: `Travel insurance (${pax} pax)`, usd: 8 * pax, kind: "estimate" as const },
   ];
   const addOnsUSD = addOnRows.reduce((s, r) => s + r.usd, 0);
@@ -51,8 +55,18 @@ function pricing(
   const grandUSD = liveCoreUSD + addOnsUSD + serviceUSD;
   return {
     fx, liveRows, liveCoreUSD, addOnRows, addOnsUSD,
-    serviceUSD, grandUSD, perPersonUSD: grandUSD / pax, rooms, pax, priced,
+    serviceUSD, grandUSD, perPersonUSD: grandUSD / (pax || 1), rooms, pax, priced,
   };
+}
+
+/** Sentinel thrown when a live-assistance toggle is ON but the upstream is unavailable. */
+export class LiveProviderUnavailable extends Error {
+  readonly which: "flights" | "hotels";
+  constructor(which: "flights" | "hotels") {
+    super(`live_provider_unavailable:${which}`);
+    this.which = which;
+    this.name = "LiveProviderUnavailable";
+  }
 }
 
 export async function buildItinerary(req: TripRequest): Promise<ItineraryResult> {
@@ -63,14 +77,22 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
   const cityLegs = orderedCities(dest);
   const nights = splitNights(cityLegs, req.durationNights);
 
-  // ── Parallel fan-out ──
+  // ── Parallel fan-out (live calls gated on assistance toggles) ──
   const [flightsRes, hotelsRes, reddit, ...poiResults] = await Promise.all([
-    liveFlights(dest.originAirport, dest.arrivalAirport, req.startDate, endDate, req.adults),
-    liveHotels(cityLegs[0].hotelCity, cityLegs[0].lat, cityLegs[0].lng,
-      req.startDate, endDate, req.adults, req.durationNights),
+    req.flightAssist
+      ? liveFlights(dest.originAirport, dest.arrivalAirport, req.startDate, endDate, req.adults)
+      : Promise.resolve(null),
+    req.hotelAssist
+      ? liveHotels(cityLegs[0].hotelCity, cityLegs[0].lat, cityLegs[0].lng,
+          req.startDate, endDate, req.adults, req.durationNights)
+      : Promise.resolve(null),
     redditSignal(dest.name),
-    ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet, req.travelStyle)),
+    ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet, req.travelStyle, req.groupType)),
   ]);
+
+  // Hard-block when the client opted into assistance but live provider failed.
+  if (req.flightAssist && !flightsRes) throw new LiveProviderUnavailable("flights");
+  if (req.hotelAssist  && !hotelsRes)  throw new LiveProviderUnavailable("hotels");
 
   const flights = flightsRes ?? sampleFlights(dest.arrivalCity);
   const hotels =
@@ -106,13 +128,19 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
   const pax = req.adults + req.children;
   const rooms = Math.max(1, Math.ceil(pax / 3));
   const hotelTotalUSD = hotels.reduce((s, h) => s + h.totalUSD, 0) * rooms;
+  // pricedLive only when *every requested* live segment actually came back live.
+  const flightsLive = req.flightAssist && flights.source === "live";
+  const hotelsLive  = req.hotelAssist  && (hotels[0]?.source ?? "sample") === "live";
+  const anyLiveOpted = req.flightAssist || req.hotelAssist;
   const pricedLive: "live" | "sample" =
-    flights.source === "live" && (hotels[0]?.source ?? "sample") === "live" ? "live" : "sample";
+    anyLiveOpted && (!req.flightAssist || flightsLive) && (!req.hotelAssist || hotelsLive)
+      ? "live" : "sample";
   const price = pricing(req, flights.perAdultUSD, hotelTotalUSD, rooms, pricedLive);
 
   const groupLabel =
     `${req.adults} Adult${req.adults > 1 ? "s" : ""}` +
-    (req.children ? ` + ${req.children} Child${req.children > 1 ? "ren" : ""}` : "");
+    (req.children ? ` + ${req.children} Child${req.children > 1 ? "ren" : ""}` : "") +
+    (req.infants  ? ` + ${req.infants} Infant${req.infants > 1 ? "s" : ""}` : "");
   const dietLabel =
     req.diet === "veg" ? "Vegetarian" : req.diet === "jain" ? "Jain"
     : req.diet === "non-veg" ? "Non-Veg" : "Mixed";
@@ -129,8 +157,8 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
     },
     flights, hotels, days, intel, pricing: price,
     freshness: {
-      flights: flights.source,
-      hotels: hotels[0]?.source ?? "sample",
+      flights: req.flightAssist ? flights.source : "indicative",
+      hotels:  req.hotelAssist  ? (hotels[0]?.source ?? "sample") : "indicative",
       places: placesLive ? "live" : "sample",
       intel: intel.source,
       engine: engineSource,

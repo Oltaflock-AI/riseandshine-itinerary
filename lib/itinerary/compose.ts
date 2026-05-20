@@ -60,21 +60,40 @@ function isTouristy(p: Place): boolean {
 }
 
 /** Apply the traveller's touristy/off-beat preference; surface what we drop. */
-function styleFilter(att: Place[], style: TripRequest["travelStyle"]) {
+function styleFilter(
+  att: Place[],
+  style: TripRequest["travelStyle"],
+  group: TripRequest["groupType"] = "family",
+) {
+  let kept: Place[];
+  let skipped: Place[] = [];
   if (style === "touristy") {
-    const kept = [...att].sort((a, b) =>
+    kept = [...att].sort((a, b) =>
       (Number(b.rating ?? 0) * Math.log10((b.reviews ?? 10) + 10)) -
       (Number(a.rating ?? 0) * Math.log10((a.reviews ?? 10) + 10)));
-    return { kept, skipped: [] as Place[] };
-  }
-  if (style === "offbeat") {
+  } else if (style === "offbeat") {
     const touristy = att.filter(isTouristy);
     const calm = att.filter((p) => !isTouristy(p));
-    const skipped = touristy.slice(0, 3);
-    const kept = calm.length >= 3 ? calm : [...calm, ...touristy.slice(3)];
-    return { kept, skipped };
+    skipped = touristy.slice(0, 3);
+    kept = calm.length >= 3 ? calm : [...calm, ...touristy.slice(3)];
+  } else {
+    kept = att; // balanced
   }
-  return { kept: att, skipped: [] as Place[] }; // balanced
+  // groupType post-filter
+  if (group === "honeymoon") {
+    const isFamilyCluster = (p: Place) => /family|theme park|water park|zoo/i.test(p.category) || /family|kids/i.test(p.name);
+    const drop = kept.filter(isFamilyCluster);
+    if (drop.length) {
+      skipped = [...skipped, ...drop];
+      kept = kept.filter((p) => !isFamilyCluster(p));
+    }
+  }
+  if (group === "bikers") {
+    // boost outdoor / road-trip POIs to the front when present.
+    const outdoor = (p: Place) => /viewpoint|beach|nature|park|scenic|hill|coast|drive|road/i.test(p.category + " " + (p.tag ?? ""));
+    kept = [...kept].sort((a, b) => Number(outdoor(b)) - Number(outdoor(a)));
+  }
+  return { kept, skipped };
 }
 
 const DEST_SKIP: Record<string, string[]> = {
@@ -100,10 +119,12 @@ function groundingJSON(req: TripRequest, ctx: ComposeContext) {
     destination: ctx.dest.name,
     startDate: req.startDate,
     totalDays: ctx.totalDays,
-    group: { adults: req.adults, children: req.children, childrenAges: req.childrenAges },
+    group: { adults: req.adults, children: req.children, infants: req.infants, childrenAges: req.childrenAges },
     diet: req.diet,
     interests: req.interests,
     travelStyle: req.travelStyle,
+    groupType: req.groupType,
+    assistance: { flight: req.flightAssist, hotel: req.hotelAssist, visa: req.visaNeeded },
     flightArrival: ctx.arrivalLabel,
     flightDeparture: ctx.departureLabel,
     note: "cities[] are already ordered from the arrival airport — keep that order; do not backtrack.",
@@ -134,8 +155,15 @@ Non-negotiables:
 - TRAVEL-EFFICIENT ROUTING: each day must be a tight geographic loop. Group stops that are close together (use lat/lng); never zig-zag across the city/island; never send them back to an area they already covered. Start each city near its hotel, then radiate outward day by day.
 - Sequence the trip FORWARD from where they land: cities[] is already ordered from the arrival airport — keep that order. Day 1 begins at the exact flight arrival time and place; the final day ends at the departure transfer. Add an intercity transfer block when the city changes.
 - For EVERY day also fill: "efficiency" (one line on why today's routing is tight, e.g. "all stops within the Seminyak–Canggu strip, ≤15 min hops") and "skip" (2-3 lines: what NOT to do today and why — tourist traps, scams, time-wasters, double-ups, or sights that clash with their travel style).
-- Respect travelStyle: touristy = include the marquee icons; offbeat = avoid crowded tourist-trap stops and prefer local/quiet picks (and say so in skip); balanced = a smart mix.
-- Pace for the group: kids ⇒ earlier nights, fewer stops/day, no nightlife. Respect diet for EVERY meal: veg/jain ⇒ only veg/jain restaurants. meal blocks: kind="meal", 2-3 restaurant options near that day's area, vary them across days (don't repeat the same 3 every meal).
+- TWO independent axes both shape the plan:
+   • travelStyle (vibe): touristy = include the marquee icons; offbeat = avoid crowded tourist-trap stops and prefer local/quiet picks (and say so in skip); balanced = a smart mix.
+   • groupType (who is travelling) layers on top:
+       - family    ⇒ kid-pacing, earlier nights, fewer stops/day, no nightlife, kid-food, stroller-aware.
+       - solo      ⇒ flexible/lighter, social cafés & day-tours, single-room context, easy public-transit picks.
+       - honeymoon ⇒ quieter & romantic, sunset/private dining, drop family-cluster spots, couple-only experiences.
+       - bikers    ⇒ self-drive backbone, bike-friendly stops, scenic-road preference, fuel/repair note per leg, avoid heavy urban traffic legs.
+- Pace constraint triggers when children > 0 OR infants > 0 (not just children). Respect diet for EVERY meal: veg/jain ⇒ only veg/jain restaurants. meal blocks: kind="meal", 2-3 restaurant options near that day's area, vary them across days (don't repeat the same 3 every meal).
+- Honour the assistance booleans: if assistance.flight=true mention the picked flight in the day's travel block; if assistance.hotel=true reference the actual hotel name for check-in/leisure; if assistance.visa=true include a one-line visa reminder on day 1.
 - sightseeing/activity blocks: set "place" to the matched attraction. Be specific and detailed in "detail" (what to actually do/see there, best timing, ≤24 words). title ≤6 words.
 - Continuous timed schedule (24h HH:MM), realistic transit & rest, no gaps/overlaps. Output strictly matches the schema.`;
 
@@ -172,8 +200,10 @@ function cityGroundingJSON(
     city: c.name,
     hotel: c.hotelName, hotelLat: c.hotelLat, hotelLng: c.hotelLng,
     daysToPlan: role.dayCount,
-    group: { adults: req.adults, children: req.children, childrenAges: req.childrenAges },
-    diet: req.diet, interests: req.interests, travelStyle: req.travelStyle,
+    group: { adults: req.adults, children: req.children, infants: req.infants, childrenAges: req.childrenAges },
+    diet: req.diet, interests: req.interests,
+    travelStyle: req.travelStyle, groupType: req.groupType,
+    assistance: { flight: req.flightAssist, hotel: req.hotelAssist, visa: req.visaNeeded },
     role: {
       ...(role.isFirst
         ? { firstDayIsArrival: true, flightArrival: ctx.arrivalLabel }
@@ -271,7 +301,7 @@ export function composeDaysTemplate(req: TripRequest, ctx: ComposeContext): Day[
   // Pre-compute, per city: style-filtered + geo-routed attraction order, and a
   // restaurant pool routed the same way (so dining is near the day's stops).
   const cityPlan = ctx.cities.map((c) => {
-    const { kept, skipped } = styleFilter(c.pois.attractions, req.travelStyle);
+    const { kept, skipped } = styleFilter(c.pois.attractions, req.travelStyle, req.groupType);
     const hotel = { lat: c.hotelLat, lng: c.hotelLng };
     return {
       c,

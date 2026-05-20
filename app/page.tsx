@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Script from "next/script";
 import type { ItineraryResult, Day, TimeBlock, Place } from "@/lib/itinerary/schema";
+import { DESTINATIONS } from "@/lib/destinations";
 
 const DESTS = [
   ["thailand", "Thailand — Bangkok & Phuket"],
@@ -12,7 +13,7 @@ const DESTS = [
   ["rajasthan", "Rajasthan — Land of Kings"],
   ["bali", "Bali — Island of the Gods"],
 ];
-const INTERESTS = ["Beach", "Sightseeing", "Shopping", "Family", "Adventure", "Wildlife", "Wellness", "Culture"];
+const INTERESTS = ["Beach", "Sightseeing", "Shopping", "Family", "Adventure", "Wildlife", "Wellness", "Culture", "Self drive", "Night life"];
 const KIND_ICON: Record<string, string> = {
   travel: "✈️", transfer: "🚐", checkin: "🏨", sightseeing: "🏛️",
   activity: "🎟️", meal: "🍽️", leisure: "🌴",
@@ -23,34 +24,52 @@ declare global { interface Window { html2pdf: any } }
 
 export default function Page() {
   const [f, setF] = useState({
-    clientName: "Rajesh Sharma", clientPhone: "+91 98250 11111",
+    clientName: "Rajesh Sharma", clientPhone: "+91 98250 11111", email: "",
     destinationKey: "thailand", durationNights: 7, budgetTier: 4,
-    startDate: "2026-06-15", adults: 2, children: 2, diet: "veg",
-    travelStyle: "balanced", visaNeeded: true,
+    startDate: "2026-06-15",
+    adults: 2, children: 2, infants: 0,
+    diet: "veg",
+    travelStyle: "balanced", groupType: "family",
+    visaNeeded: true, flightAssist: false, hotelAssist: false,
   });
   const [interests, setInterests] = useState<string[]>(["Beach", "Family"]);
+  const [scope, setScope] = useState<"domestic" | "international">("international");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [errToggle, setErrToggle] = useState<"flights" | "hotels" | null>(null);
   const [result, setResult] = useState<ItineraryResult | null>(null);
+  const [editedDays, setEditedDays] = useState<Day[] | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
 
   const up = (k: string, v: any) => setF((s) => ({ ...s, [k]: v }));
 
   async function generate() {
-    setErr(null); setLoading(true); setResult(null);
+    setErr(null); setErrToggle(null); setLoading(true); setResult(null);
+    setEditedDays(null); setEditMode(false);
     try {
+      const { email, ...rest } = f;
       const r = await fetch("/api/itinerary", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...f,
+          ...rest,
+          ...(email && email.trim() ? { email: email.trim() } : {}),
           durationNights: Number(f.durationNights),
           budgetTier: Number(f.budgetTier),
-          adults: Number(f.adults), children: Number(f.children),
+          adults: Number(f.adults),
+          children: Number(f.children),
+          infants: Number(f.infants),
           interests,
         }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.detail || j.error || "Failed");
+      if (!r.ok) {
+        if (j?.error === "live_provider_unavailable" && (j.which === "flights" || j.which === "hotels")) {
+          setErrToggle(j.which);
+          throw new Error(`Live ${j.which} provider not configured — see Setup.`);
+        }
+        throw new Error(j.detail || j.error || "Failed");
+      }
       setResult(j as ItineraryResult);
     } catch (e: any) {
       setErr(e.message || "Something went wrong");
@@ -103,11 +122,31 @@ export default function Page() {
             <input value={f.clientName} onChange={(e) => up("clientName", e.target.value)} /></div>
           <div className="fg"><label>Contact (WhatsApp)</label>
             <input value={f.clientPhone} onChange={(e) => up("clientPhone", e.target.value)} /></div>
+          <div className="fg"><label>Email <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+            <input type="email" placeholder="client@example.com" value={f.email}
+              onChange={(e) => up("email", e.target.value)} /></div>
 
           <div className="section-title">Trip</div>
+          <div className="fg"><label>Destination scope</label>
+            <div className="scope-pill">
+              <button type="button" aria-pressed={scope === "domestic"}
+                onClick={() => {
+                  setScope("domestic");
+                  const first = DESTS.find(([k]) => DESTINATIONS[k as string]?.international === false);
+                  if (first && f.destinationKey !== first[0]) up("destinationKey", first[0]);
+                }}>🇮🇳 Domestic</button>
+              <button type="button" aria-pressed={scope === "international"}
+                onClick={() => {
+                  setScope("international");
+                  const first = DESTS.find(([k]) => DESTINATIONS[k as string]?.international === true);
+                  if (first && f.destinationKey !== first[0]) up("destinationKey", first[0]);
+                }}>✈️ International</button>
+            </div></div>
           <div className="fg"><label>Destination</label>
             <select value={f.destinationKey} onChange={(e) => up("destinationKey", e.target.value)}>
-              {DESTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {DESTS
+                .filter(([k]) => DESTINATIONS[k as string]?.international === (scope === "international"))
+                .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select></div>
           <div className="row2">
             <div className="fg"><label>Nights</label>
@@ -120,7 +159,7 @@ export default function Page() {
                 <option value={5}>Luxury (5★)</option>
               </select></div>
           </div>
-          <div className="fg"><label>Start date</label>
+          <div className="fg"><label>Travel date</label>
             <input type="date" value={f.startDate} onChange={(e) => up("startDate", e.target.value)} /></div>
 
           <div className="section-title">Group & preferences</div>
@@ -128,10 +167,13 @@ export default function Page() {
             <div className="fg"><label>Adults</label>
               <input type="number" min={1} max={20} value={f.adults}
                 onChange={(e) => up("adults", e.target.value)} /></div>
-            <div className="fg"><label>Children</label>
-              <input type="number" min={0} max={12} value={f.children}
+            <div className="fg"><label>Children (6–11 yrs)</label>
+              <input type="number" min={0} max={10} value={f.children}
                 onChange={(e) => up("children", e.target.value)} /></div>
           </div>
+          <div className="fg"><label>Infants (0–5 yrs)</label>
+            <input type="number" min={0} max={6} value={f.infants}
+              onChange={(e) => up("infants", e.target.value)} /></div>
           <div className="fg"><label>Dietary preference</label>
             <select value={f.diet} onChange={(e) => up("diet", e.target.value)}>
               <option value="veg">Vegetarian</option>
@@ -139,12 +181,21 @@ export default function Page() {
               <option value="non-veg">Non-Vegetarian</option>
               <option value="mixed">Mixed</option>
             </select></div>
-          <div className="fg"><label>Travel style</label>
-            <select title="Travel style" value={f.travelStyle} onChange={(e) => up("travelStyle", e.target.value)}>
-              <option value="touristy">Touristy — hit the famous icons</option>
-              <option value="balanced">Balanced — icons + local mix</option>
-              <option value="offbeat">Off-beat — skip the tourist crush</option>
-            </select></div>
+          <div className="row2">
+            <div className="fg"><label>Travel style</label>
+              <select title="Travel style" value={f.travelStyle} onChange={(e) => up("travelStyle", e.target.value)}>
+                <option value="touristy">Touristy — famous icons</option>
+                <option value="balanced">Balanced — mix</option>
+                <option value="offbeat">Off-beat — skip the crush</option>
+              </select></div>
+            <div className="fg"><label>Traveller profile</label>
+              <select title="Traveller profile" value={f.groupType} onChange={(e) => up("groupType", e.target.value)}>
+                <option value="family">Family</option>
+                <option value="solo">Solo traveller</option>
+                <option value="honeymoon">Honeymoon</option>
+                <option value="bikers">Bike riders</option>
+              </select></div>
+          </div>
           <div className="fg"><label>Interests</label>
             <div className="chips">
               {INTERESTS.map((i) => (
@@ -152,9 +203,30 @@ export default function Page() {
                   onClick={() => setInterests((s) => s.includes(i) ? s.filter((x) => x !== i) : [...s, i])}>{i}</span>
               ))}
             </div></div>
-          <div className="fg"><label className="cbx">
-            <input type="checkbox" checked={f.visaNeeded} onChange={(e) => up("visaNeeded", e.target.checked)} />
-            Visa assistance required</label></div>
+          <div className="section-title">Booking assistance</div>
+          <div className="fg">
+            <div className="toggle-row">
+              <button type="button"
+                className={"butter-toggle" + (errToggle === "flights" ? " warn" : "")}
+                aria-pressed={f.flightAssist}
+                onClick={() => up("flightAssist", !f.flightAssist)}>
+                <span className="dot" />✈️ Flight assistance
+              </button>
+              <button type="button"
+                className={"butter-toggle" + (errToggle === "hotels" ? " warn" : "")}
+                aria-pressed={f.hotelAssist}
+                onClick={() => up("hotelAssist", !f.hotelAssist)}>
+                <span className="dot" />🏨 Hotel assistance
+              </button>
+              <button type="button"
+                className="butter-toggle"
+                aria-pressed={f.visaNeeded}
+                onClick={() => up("visaNeeded", !f.visaNeeded)}>
+                <span className="dot" />🛂 Visa assistance
+              </button>
+            </div>
+            <p className="hint">Toggling Flight / Hotel ON fetches real live options (cheapest + 4 alternatives) from Amadeus.</p>
+          </div>
 
           <button className="btn btn-primary" disabled={loading} onClick={generate}>
             {loading ? <><span className="spin" /> &nbsp;Building live itinerary…</> : "⚡ Generate Live Itinerary"}
@@ -179,17 +251,28 @@ export default function Page() {
                 (Google Places), traveller intel (Reddit), composing the hour-by-hour plan (Claude).</p>
             </div>
           )}
-          {result && <Itinerary r={result} docRef={docRef} onPDF={downloadPDF} onWA={whatsapp} />}
+          {result && <Itinerary
+            r={result}
+            days={editedDays ?? result.days}
+            editMode={editMode}
+            onEditToggle={() => {
+              if (!editMode && !editedDays) setEditedDays(result.days);
+              setEditMode((v) => !v);
+            }}
+            onReset={() => { setEditedDays(null); setEditMode(false); }}
+            setDays={(d) => setEditedDays(d)}
+            docRef={docRef} onPDF={downloadPDF} onWA={whatsapp} />}
         </main>
       </div>
     </>
   );
 }
 
-function Fresh({ s }: { s: "live" | "sample" }) {
-  return s === "live"
-    ? <span className="live"><span className="dot" />Live data</span>
-    : <span className="live warn"><span className="dot" />Sample — add the API key to go live</span>;
+function Fresh({ s }: { s: "live" | "sample" | "indicative" }) {
+  if (s === "live") return <span className="live"><span className="dot" />Live data</span>;
+  if (s === "indicative")
+    return <span className="live ind"><span className="dot" />Indicative — toggle assistance for live</span>;
+  return <span className="live warn"><span className="dot" />Sample — add the API key to go live</span>;
 }
 
 function PlaceChip({ p }: { p: Place }) {
@@ -229,15 +312,40 @@ function Block({ b }: { b: TimeBlock }) {
   );
 }
 
-function DayCard({ d }: { d: Day }) {
+function DayCard({ d, editMode, onChange }: { d: Day; editMode: boolean; onChange: (nd: Day) => void }) {
+  const setBlock = (i: number, nb: TimeBlock) =>
+    onChange({ ...d, blocks: d.blocks.map((x, j) => (j === i ? nb : x)) });
+  const delBlock = (i: number) =>
+    onChange({ ...d, blocks: d.blocks.filter((_, j) => j !== i) });
+  const addBlock = () =>
+    onChange({
+      ...d,
+      blocks: [...d.blocks, {
+        start: "12:00", end: "13:00", kind: "leisure",
+        title: "New block", detail: "Describe this slot.", place: null, options: [],
+      }],
+    });
   return (
     <div className="day">
       <div className="dhead">
-        <div><span className="dn">DAY {d.dayIndex + 1}</span><span className="dt">{d.headline}</span></div>
+        <div>
+          <span className="dn">DAY {d.dayIndex + 1}</span>
+          {editMode
+            ? <input className="edit-input headline" value={d.headline}
+                onChange={(e) => onChange({ ...d, headline: e.target.value })} />
+            : <span className="dt">{d.headline}</span>}
+        </div>
         <div className="dd">{d.weekday}, {d.date} · {d.cityLabel}</div>
       </div>
       {d.efficiency && <div className="effic">🧭 <b>Travel-efficient:</b> {d.efficiency}</div>}
-      <div className="tl">{d.blocks.map((b, i) => <Block key={i} b={b} />)}</div>
+      <div className="tl">
+        {d.blocks.map((b, i) => editMode
+          ? <BlockEdit key={i} b={b} onChange={(nb) => setBlock(i, nb)} onDelete={() => delBlock(i)} />
+          : <Block key={i} b={b} />)}
+        {editMode && (
+          <button type="button" className="ba add-block" onClick={addBlock}>+ Add block</button>
+        )}
+      </div>
       {d.skip?.length > 0 && (
         <div className="skip">
           <div className="sl">⛔ Skip today</div>
@@ -248,11 +356,56 @@ function DayCard({ d }: { d: Day }) {
   );
 }
 
-function Itinerary({ r, docRef, onPDF, onWA }: {
-  r: ItineraryResult; docRef: React.RefObject<HTMLDivElement | null>;
+function BlockEdit({ b, onChange, onDelete }: {
+  b: TimeBlock; onChange: (nb: TimeBlock) => void; onDelete: () => void;
+}) {
+  return (
+    <div className="blk edit">
+      <div className="btime">
+        <input className="edit-input time" type="time" value={b.start}
+          onChange={(e) => onChange({ ...b, start: e.target.value })} />
+        <input className="edit-input time" type="time" value={b.end}
+          onChange={(e) => onChange({ ...b, end: e.target.value })} />
+      </div>
+      <div className="brail"><div className="bicon">{KIND_ICON[b.kind] ?? "•"}</div><div className="bline" /></div>
+      <div className="bbody">
+        <div className="be-row">
+          <input className="edit-input title" value={b.title}
+            onChange={(e) => onChange({ ...b, title: e.target.value })} />
+          <button type="button" className="del-btn" onClick={onDelete} aria-label="Remove block">×</button>
+        </div>
+        <textarea className="edit-input detail" rows={2} value={b.detail}
+          onChange={(e) => onChange({ ...b, detail: e.target.value })} />
+        {b.place && <PlaceChip p={b.place} />}
+        {b.options?.length > 0 && (
+          <div className="opts">
+            {b.options.map((o, i) => (
+              <button type="button" key={i} className="opt as-btn"
+                onClick={() => {
+                  // Move clicked option to position 0 (primary).
+                  const reordered = [o, ...b.options.filter((_, j) => j !== i)];
+                  onChange({ ...b, options: reordered });
+                }}>
+                <div><div className="on">{i === 0 ? "★ " : ""}{o.name}</div>
+                  <div className="om">{o.vegFriendly ? "veg-friendly" : o.category}{o.rating ? ` · ★ ${o.rating}` : ""}</div></div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Itinerary({ r, days, editMode, onEditToggle, onReset, setDays, docRef, onPDF, onWA }: {
+  r: ItineraryResult; days: Day[];
+  editMode: boolean; onEditToggle: () => void; onReset: () => void;
+  setDays: (d: Day[]) => void;
+  docRef: React.RefObject<HTMLDivElement | null>;
   onPDF: () => void; onWA: () => void;
 }) {
   const fx = r.pricing.fx;
+  const updateDay = (i: number, nd: Day) => setDays(days.map((x, j) => (j === i ? nd : x)));
   return (
     <>
       <div className="toolbar">
@@ -262,8 +415,12 @@ function Itinerary({ r, docRef, onPDF, onWA }: {
             {r.meta.startDate} → {r.meta.endDate} · {r.meta.groupLabel}</div>
         </div>
         <div className="acts">
-          <button className="ba" onClick={onWA}>📱 WhatsApp</button>
-          <button className="ba dl" onClick={onPDF}>⬇ Download PDF</button>
+          <button type="button" className={"ba" + (editMode ? " dl" : "")} onClick={onEditToggle}>
+            {editMode ? "💾 Save edits" : "✏️ Edit itinerary"}
+          </button>
+          {editMode && <button type="button" className="ba" onClick={onReset}>↺ Reset</button>}
+          <button type="button" className="ba" onClick={onWA}>📱 WhatsApp</button>
+          <button type="button" className="ba dl" onClick={onPDF}>⬇ Download PDF</button>
         </div>
       </div>
 
@@ -366,7 +523,10 @@ function Itinerary({ r, docRef, onPDF, onWA }: {
           <div className="h2">Your Day-by-Day Journey</div>
           <div className="subm">Done-for-you — every hour planned with real places & diet-matched dining options.
             &nbsp;<Fresh s={r.freshness.engine} /></div>
-          {r.days.map((d) => <DayCard key={d.dayIndex} d={d} />)}
+          {days.map((d, i) => (
+            <DayCard key={d.dayIndex} d={d} editMode={editMode}
+              onChange={(nd) => updateDay(i, nd)} />
+          ))}
         </div>
 
         <div className="page">
