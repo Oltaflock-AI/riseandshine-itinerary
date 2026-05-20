@@ -1,15 +1,105 @@
+import type { Destination } from "@/lib/destinations";
 import type { Flights, Hotel } from "@/lib/itinerary/schema";
 
-/** Labelled sample flights — real Expedia AMD⇄BKK pull (2026-05-18), used until Amadeus keys are set. */
-export function sampleFlights(arrivalCity: string): Flights {
+/** Format ISO YYYY-MM-DD into "15 Jun" for display. */
+function fmtDay(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+
+interface RoutePreset {
+  carrier: string;
+  perAdultUSD: number;
+  midpoint?: string;          // omitted = non-stop
+  midpointCity?: string;
+  outDep: string; outArr: string; outArrNextDay?: boolean;
+  inDep: string; inArr: string; inArrNextDay?: boolean;
+  outDur: string; inDur: string;
+  cabin: string;
+}
+
+/** AMD → arrival per destination, with realistic carrier + route + times. */
+const ROUTES: Record<string, RoutePreset> = {
+  thailand: {
+    carrier: "IndiGo (6E)", perAdultUSD: 386,
+    midpoint: "BOM", midpointCity: "Mumbai",
+    outDep: "04:00", outArr: "19:15", outDur: "13h 45m",
+    inDep: "07:55",  inArr: "05:20", inArrNextDay: true, inDur: "21h 25m",
+    cabin: "ECONOMY SAVER",
+  },
+  kerala: {
+    carrier: "IndiGo (6E)", perAdultUSD: 145,
+    midpoint: "BOM", midpointCity: "Mumbai",
+    outDep: "06:00", outArr: "11:40", outDur: "5h 40m",
+    inDep: "15:00",  inArr: "20:25", inDur: "5h 25m",
+    cabin: "ECONOMY",
+  },
+  rajasthan: {
+    carrier: "IndiGo (6E)", perAdultUSD: 78,
+    outDep: "08:20", outArr: "09:35", outDur: "1h 15m",
+    inDep: "17:00",  inArr: "18:20", inDur: "1h 20m",
+    cabin: "ECONOMY",
+  },
+  mauritius: {
+    carrier: "Air Mauritius (MK)", perAdultUSD: 612,
+    midpoint: "BOM", midpointCity: "Mumbai",
+    outDep: "23:30", outArr: "08:10", outArrNextDay: true, outDur: "11h 10m",
+    inDep: "11:30",  inArr: "00:40", inArrNextDay: true,  inDur: "10h 40m",
+    cabin: "ECONOMY",
+  },
+  maldives: {
+    carrier: "IndiGo (6E)", perAdultUSD: 428,
+    midpoint: "BOM", midpointCity: "Mumbai",
+    outDep: "01:20", outArr: "11:55", outDur: "9h 5m",
+    inDep: "13:25",  inArr: "22:40", inDur: "8h 45m",
+    cabin: "ECONOMY",
+  },
+  bali: {
+    carrier: "Singapore Airlines (SQ)", perAdultUSD: 521,
+    midpoint: "SIN", midpointCity: "Singapore",
+    outDep: "21:30", outArr: "21:05", outArrNextDay: true, outDur: "21h 5m",
+    inDep: "23:15",  inArr: "11:50", inArrNextDay: true,  inDur: "10h 5m",
+    cabin: "ECONOMY",
+  },
+};
+
+/** Sample flights — uses destination route + actual dates. Never references BKK unless destination IS Thailand. */
+export function sampleFlights(dest: Destination, startDate: string, endDate: string): Flights {
+  const p = ROUTES[dest.key] ?? ROUTES.thailand;
+  const origin = dest.originAirport;        // always AMD
+  const arr = dest.arrivalAirport;
+
+  const outRoute = p.midpoint ? `${origin} → ${p.midpoint} → ${arr}` : `${origin} → ${arr}`;
+  const inRoute  = p.midpoint ? `${arr} → ${p.midpoint} → ${origin}` : `${arr} → ${origin}`;
+  const stops = p.midpoint ? `1 stop · ${p.midpointCity}` : "Non-stop";
+
+  const startNext = (() => {
+    const d = new Date(startDate + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+  const endNext = (() => {
+    const d = new Date(endDate + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
   return {
-    carrier: "IndiGo (6E)",
-    outbound: { label: "Outbound", route: "AMD → BOM → BKK", flights: "6E-6285 / 6E-1059",
-      dep: "15 Jun · 04:00", arr: "15 Jun · 19:15", dur: "13h 45m", stops: "1 stop · Mumbai" },
-    inbound: { label: "Return", route: "BKK → BOM → AMD", flights: "6E-1050 / 6E-632",
-      dep: "22 Jun · 07:55", arr: "23 Jun · 05:20", dur: "21h 25m", stops: "1 stop · Mumbai" },
-    fareNote: `SAVER · carry-on + 1 bag free · sample fare to ${arrivalCity}`,
-    perAdultUSD: 386,
+    carrier: p.carrier,
+    outbound: {
+      label: "Outbound", route: outRoute,
+      flights: p.midpoint ? "6E-6285 / 6E-1059" : "6E-9001",
+      dep: `${fmtDay(startDate)} · ${p.outDep}`,
+      arr: `${fmtDay(p.outArrNextDay ? startNext : startDate)} · ${p.outArr}`,
+      dur: p.outDur, stops,
+    },
+    inbound: {
+      label: "Return", route: inRoute,
+      flights: p.midpoint ? "6E-1050 / 6E-632" : "6E-9002",
+      dep: `${fmtDay(endDate)} · ${p.inDep}`,
+      arr: `${fmtDay(p.inArrNextDay ? endNext : endDate)} · ${p.inArr}`,
+      dur: p.inDur, stops,
+    },
+    fareNote: `${p.cabin} · indicative sample fare · subject to availability`,
+    perAdultUSD: p.perAdultUSD,
     source: "sample",
     alternatives: [],
   };

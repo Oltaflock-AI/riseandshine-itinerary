@@ -10,6 +10,9 @@ import {
 import { fxRate } from "@/lib/money";
 import type { ItineraryResult, Pricing, TripRequest } from "@/lib/itinerary/schema";
 
+const DISCLAIMER =
+  "All prices are indicative and subject to change. Flight fares, hotel rates and visa fees vary by demand, season and availability and are confirmed only on the booking call. Quoted figures do not constitute a guarantee.";
+
 function addDays(iso: string, n: number): string {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
@@ -17,28 +20,37 @@ function addDays(iso: string, n: number): string {
 }
 
 /**
- * Pricing is split so nothing fake-precise is implied:
- *  - liveRows  = flights + hotels, the ACTUAL fetched totals (exact when the
- *    Amadeus provider is live; sample numbers are flagged via `priced`).
- *  - addOnRows = clearly-indicative extras, confirmed on the booking call.
+ * Pricing rows are conditional on which assistance the client toggled on.
+ *  - Flight/Hotel rows: only included when the matching toggle is ON.
+ *  - Add-ons: travel insurance always, visa only if visaNeeded, etc.
  */
 function pricing(
-  req: TripRequest, perAdultUSD: number, hotelUSD: number,
+  req: TripRequest,
+  perAdultUSD: number, hotelUSD: number,
   rooms_: number, priced: "live" | "sample",
 ): Pricing {
   const fx = fxRate();
-  const paxForHotels = req.adults + req.children;          // infants share bed
-  const paxForFlight = req.adults + req.children;          // lap-infant ≈ free
+  const paxForHotels = req.adults + req.children;
+  const paxForFlight = req.adults + req.children;
   const pax = paxForHotels;
   const rooms = rooms_;
   const flight = Math.round(perAdultUSD * paxForFlight);
   const hotels = Math.round(hotelUSD);
 
-  const liveRows = [
-    { label: `Flights — ${paxForFlight} traveller${paxForFlight > 1 ? "s" : ""} (fetched fare)`, usd: flight, kind: "live" as const },
-    { label: `Hotels — ${rooms} room${rooms > 1 ? "s" : ""}, all nights (fetched rate)`, usd: hotels, kind: "live" as const },
-  ];
-  const liveCoreUSD = flight + hotels;
+  const liveRows: Pricing["liveRows"] = [];
+  if (req.flightAssist) {
+    liveRows.push({
+      label: `Flights — ${paxForFlight} traveller${paxForFlight > 1 ? "s" : ""}${priced === "live" ? " (fetched fare)" : " (indicative sample)"}`,
+      usd: flight, kind: "live",
+    });
+  }
+  if (req.hotelAssist) {
+    liveRows.push({
+      label: `Hotels — ${rooms} room${rooms > 1 ? "s" : ""}, all nights${priced === "live" ? " (fetched rate)" : " (indicative sample)"}`,
+      usd: hotels, kind: "live",
+    });
+  }
+  const liveCoreUSD = liveRows.reduce((s, r) => s + r.usd, 0);
 
   const visa = req.visaNeeded ? 30 * pax : 0;
   const addOnRows = [
@@ -59,7 +71,10 @@ function pricing(
   };
 }
 
-/** Sentinel thrown when a live-assistance toggle is ON but the upstream is unavailable. */
+/**
+ * Retained for backwards-compat. The build flow no longer throws this — when a
+ * live provider is unavailable we silently fall back to sample (and flag it).
+ */
 export class LiveProviderUnavailable extends Error {
   readonly which: "flights" | "hotels";
   constructor(which: "flights" | "hotels") {
@@ -73,11 +88,10 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
   const dest = DESTINATIONS[req.destinationKey] ?? DESTINATIONS.thailand;
   const totalDays = req.durationNights + 1;
   const endDate = addDays(req.startDate, req.durationNights);
-  // Sequence the trip FROM where they land — nearest city to the airport first.
   const cityLegs = orderedCities(dest);
   const nights = splitNights(cityLegs, req.durationNights);
 
-  // ── Parallel fan-out (live calls gated on assistance toggles) ──
+  // ── Parallel fan-out. Live providers only called when the matching toggle is ON. ──
   const [flightsRes, hotelsRes, reddit, ...poiResults] = await Promise.all([
     req.flightAssist
       ? liveFlights(dest.originAirport, dest.arrivalAirport, req.startDate, endDate, req.adults)
@@ -90,12 +104,10 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
     ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet, req.travelStyle, req.groupType)),
   ]);
 
-  // Hard-block when the client opted into assistance but live provider failed.
-  if (req.flightAssist && !flightsRes) throw new LiveProviderUnavailable("flights");
-  if (req.hotelAssist  && !hotelsRes)  throw new LiveProviderUnavailable("hotels");
-
-  const flights = flightsRes ?? sampleFlights(dest.arrivalCity);
-  const hotels =
+  // Always compute a flight + hotel context for the engine (timing day 1, hotel anchors),
+  // but only expose them in the result when the client requested that assistance.
+  const flightsCtx = flightsRes ?? sampleFlights(dest, req.startDate, endDate);
+  const hotelsCtx =
     hotelsRes && hotelsRes.length
       ? hotelsRes.slice(0, cityLegs.length).map((h, i) => ({ ...h, nights: nights[i] ?? h.nights }))
       : sampleHotels(dest.key, req.budgetTier, nights);
@@ -107,15 +119,15 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
     cursor = addDays(cursor, nights[i]);
     return {
       name: c.name, nights: nights[i], arriveDate,
-      pois: poiResults[i], hotelName: hotels[i]?.name ?? `${c.name} hotel`,
-      hotelLat: hotels[i]?.lat ?? c.lat, hotelLng: hotels[i]?.lng ?? c.lng,
+      pois: poiResults[i], hotelName: hotelsCtx[i]?.name ?? `${c.name} hotel`,
+      hotelLat: hotelsCtx[i]?.lat ?? c.lat, hotelLng: hotelsCtx[i]?.lng ?? c.lng,
     };
   });
 
   const ctx: ComposeContext = {
     dest, cities, totalDays,
-    arrivalLabel: flights.outbound.arr,
-    departureLabel: flights.inbound.dep,
+    arrivalLabel: flightsCtx.outbound.arr,
+    departureLabel: flightsCtx.inbound.dep,
   };
 
   const [claudeDays, intel] = await Promise.all([
@@ -127,15 +139,14 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
 
   const pax = req.adults + req.children;
   const rooms = Math.max(1, Math.ceil(pax / 3));
-  const hotelTotalUSD = hotels.reduce((s, h) => s + h.totalUSD, 0) * rooms;
-  // pricedLive only when *every requested* live segment actually came back live.
-  const flightsLive = req.flightAssist && flights.source === "live";
-  const hotelsLive  = req.hotelAssist  && (hotels[0]?.source ?? "sample") === "live";
+  const hotelTotalUSD = hotelsCtx.reduce((s, h) => s + h.totalUSD, 0) * rooms;
+  const flightsLive = req.flightAssist && flightsCtx.source === "live";
+  const hotelsLive  = req.hotelAssist  && (hotelsCtx[0]?.source ?? "sample") === "live";
   const anyLiveOpted = req.flightAssist || req.hotelAssist;
   const pricedLive: "live" | "sample" =
     anyLiveOpted && (!req.flightAssist || flightsLive) && (!req.hotelAssist || hotelsLive)
       ? "live" : "sample";
-  const price = pricing(req, flights.perAdultUSD, hotelTotalUSD, rooms, pricedLive);
+  const price = pricing(req, flightsCtx.perAdultUSD, hotelTotalUSD, rooms, pricedLive);
 
   const groupLabel =
     `${req.adults} Adult${req.adults > 1 ? "s" : ""}` +
@@ -154,11 +165,16 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
       destinationName: dest.name, title: dest.title, tagline: dest.tagline,
       startDate: req.startDate, endDate, groupLabel, dietLabel, budgetLabel,
       visaNeeded: req.visaNeeded, pulledAt: new Date().toISOString().slice(0, 10),
+      disclaimer: DISCLAIMER,
+      originAirport: dest.originAirport,
     },
-    flights, hotels, days, intel, pricing: price,
+    flights: req.flightAssist ? flightsCtx : null,
+    hotels:  req.hotelAssist  ? hotelsCtx  : null,
+    visa:    req.visaNeeded   ? dest.visa  : null,
+    days, intel, pricing: price,
     freshness: {
-      flights: req.flightAssist ? flights.source : "indicative",
-      hotels:  req.hotelAssist  ? (hotels[0]?.source ?? "sample") : "indicative",
+      flights: req.flightAssist ? flightsCtx.source : "indicative",
+      hotels:  req.hotelAssist  ? (hotelsCtx[0]?.source ?? "sample") : "indicative",
       places: placesLive ? "live" : "sample",
       intel: intel.source,
       engine: engineSource,

@@ -116,7 +116,6 @@ export default function Page() {
         </div>
         <div className="topright">
           <div className="livebadge"><span className="dot" />LIVE</div>
-          <div className="techstack">Amadeus · Google Places<br />Claude · Reddit</div>
         </div>
       </header>
 
@@ -472,62 +471,26 @@ function Itinerary({ r, days, editMode, onEditToggle, onReset, setDays, docRef, 
 
         <div className="page">
           <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
-            <div className="pn">Trip Overview</div></div>
+            <div className="pn">Pricing &amp; Booking Estimate</div></div>
 
-          <div className="h2">Your Stay</div>
-          <Fresh s={r.freshness.hotels} />
-          {r.hotels.map((h, i) => {
-            const sv = h.strikeUSD ? Math.round((1 - h.totalUSD / h.strikeUSD) * 100) : 0;
-            return (
-              <div className="hcard" key={i}>
-                <iframe className="map" loading="lazy"
-                  src={`https://www.google.com/maps?q=${h.lat},${h.lng}&z=14&output=embed`} title={h.name} />
-                <div className="bd">
-                  <div className="nm">{h.name}</div>
-                  <div className="ar">{h.area}</div>
-                  <div className="stars">{"★".repeat(h.stars)}{"☆".repeat(5 - h.stars)}</div>
-                  <div className="pills">
-                    <span className="pill rate">★ {h.rating}/10</span>
-                    {h.reviews > 0 && <span className="pill">{h.reviews.toLocaleString("en-IN")} reviews</span>}
-                    <span className="pill">{h.nights} night{h.nights > 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="price">
-                    <span className="now">{inr(h.totalUSD, fx)}</span>
-                    {h.strikeUSD && <><span className="was">{inr(h.strikeUSD, fx)}</span><span className="sv">−{sv}%</span></>}
-                    <span className="u">(${h.totalUSD} · {h.nights}N)</span>
-                  </div>
-                  <a className="lnk" href={h.bookUrl} target="_blank" rel="noopener">Book ↗</a>
-                  <a className="lnk alt" href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`} target="_blank" rel="noopener">📍 Map ↗</a>
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="h2" style={{ marginTop: 18 }}>Flights</div>
-          <Fresh s={r.freshness.flights} />
-          <div className="fcard">
-            {[r.flights.outbound, r.flights.inbound].map((l, i) => (
-              <div className="fleg" key={i}>
-                <div><div className="fr">{l.label} · {l.route}</div>
-                  <div className="fs">{r.flights.carrier} · {l.flights} · {l.stops}</div></div>
-                <div className="ft">{l.dep}<br /><span style={{ color: "#9aa7a7" }}>→ {l.arr}</span><br />{l.dur}</div>
-              </div>
-            ))}
-            <div className="fs" style={{ marginTop: 8 }}>{r.flights.fareNote}</div>
+          <div className="h2">Indicative Package Pricing</div>
+          <div className="disclaimer">
+            <b>⚠ Subject to change.</b> {r.meta.disclaimer}
           </div>
-
-          <div className="h2" style={{ marginTop: 18 }}>Price — Real Fetched Rates</div>
           {r.pricing.priced === "live"
-            ? <span className="live"><span className="dot" />Flights &amp; hotels = live fetched totals (exact)</span>
-            : <span className="live warn"><span className="dot" />Flights &amp; hotels = sample — add Amadeus keys for live exact rates</span>}
-          <table className="ptab">
-            <tbody>
-              {r.pricing.liveRows.map((row, i) => (
-                <tr key={i}><td>{row.label}</td><td>{inr(row.usd, fx)}</td></tr>
-              ))}
-              <tr className="gr"><td>Live-priced core (flights + hotels)</td><td>{inr(r.pricing.liveCoreUSD, fx)}</td></tr>
-            </tbody>
-          </table>
+            ? <span className="live"><span className="dot" />Flights &amp; hotels = live fetched totals · still subject to availability</span>
+            : <span className="live warn"><span className="dot" />Indicative sample rates — confirmed exactly on the booking call</span>}
+
+          {r.pricing.liveRows.length > 0 && (
+            <table className="ptab">
+              <tbody>
+                {r.pricing.liveRows.map((row, i) => (
+                  <tr key={i}><td>{row.label}</td><td>{inr(row.usd, fx)}</td></tr>
+                ))}
+                <tr className="gr"><td>Booking-assistance core</td><td>{inr(r.pricing.liveCoreUSD, fx)}</td></tr>
+              </tbody>
+            </table>
+          )}
           <div className="subm" style={{ margin: "10px 0 4px" }}>Indicative add-ons — confirmed exactly on the booking call:</div>
           <table className="ptab">
             <tbody>
@@ -540,11 +503,83 @@ function Itinerary({ r, days, editMode, onEditToggle, onReset, setDays, docRef, 
           </table>
           <div className="ppp">
             <div><div className="l">Approx. per person ({r.pricing.pax} sharing)</div>
-              <div style={{ fontSize: 11, opacity: .7 }}>
-                live core {inr(r.pricing.liveCoreUSD / r.pricing.pax, fx)} + add-ons · FX ₹{fx}/$</div></div>
+              <div style={{ fontSize: 11, opacity: .7 }}>FX ₹{fx}/$ · all figures indicative · not a guarantee of final fare or rate</div></div>
             <div className="a">{inr(r.pricing.perPersonUSD, fx)}</div>
           </div>
         </div>
+
+        {(r.hotels || r.flights || r.visa) && (
+        <div className="page">
+          <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
+            <div className="pn">Booking Assistance</div></div>
+
+          {r.hotels && (
+            <>
+              <div className="h2">Your Stay</div>
+              <Fresh s={r.freshness.hotels} />
+              {r.hotels.map((h, i) => {
+                const sv = h.strikeUSD ? Math.round((1 - h.totalUSD / h.strikeUSD) * 100) : 0;
+                return (
+                  <div className="hcard" key={i}>
+                    <iframe className="map" loading="lazy"
+                      src={`https://www.google.com/maps?q=${h.lat},${h.lng}&z=14&output=embed`} title={h.name} />
+                    <div className="bd">
+                      <div className="nm">{h.name}</div>
+                      <div className="ar">{h.area}</div>
+                      <div className="stars">{"★".repeat(h.stars)}{"☆".repeat(5 - h.stars)}</div>
+                      <div className="pills">
+                        <span className="pill rate">★ {h.rating}/10</span>
+                        {h.reviews > 0 && <span className="pill">{h.reviews.toLocaleString("en-IN")} reviews</span>}
+                        <span className="pill">{h.nights} night{h.nights > 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="price">
+                        <span className="now">{inr(h.totalUSD, fx)}</span>
+                        {h.strikeUSD && <><span className="was">{inr(h.strikeUSD, fx)}</span><span className="sv">−{sv}%</span></>}
+                        <span className="u">(${h.totalUSD} · {h.nights}N · indicative)</span>
+                      </div>
+                      <a className="lnk" href={h.bookUrl} target="_blank" rel="noopener">Book ↗</a>
+                      <a className="lnk alt" href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`} target="_blank" rel="noopener">📍 Map ↗</a>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {r.flights && (
+            <>
+              <div className="h2" style={{ marginTop: 18 }}>Flights · from {r.meta.originAirport}</div>
+              <Fresh s={r.freshness.flights} />
+              <div className="fcard">
+                {[r.flights.outbound, r.flights.inbound].map((l, i) => (
+                  <div className="fleg" key={i}>
+                    <div><div className="fr">{l.label} · {l.route}</div>
+                      <div className="fs">{r.flights!.carrier} · {l.flights} · {l.stops}</div></div>
+                    <div className="ft">{l.dep}<br /><span style={{ color: "var(--ink-faint)" }}>→ {l.arr}</span><br />{l.dur}</div>
+                  </div>
+                ))}
+                <div className="fs" style={{ marginTop: 8 }}>{r.flights.fareNote}</div>
+              </div>
+            </>
+          )}
+
+          {r.visa && (
+            <>
+              <div className="h2" style={{ marginTop: 18 }}>Visa Assistance</div>
+              <span className="live warn"><span className="dot" />Fees + processing times subject to consulate updates</span>
+              <table className="ptab vtab">
+                <tbody>
+                  <tr><td>Visa type</td><td>{r.visa.type}</td></tr>
+                  <tr><td>Validity</td><td>{r.visa.validity}</td></tr>
+                  <tr><td>Processing</td><td>{r.visa.processing}</td></tr>
+                  <tr><td>Fee</td><td>{r.visa.fee}</td></tr>
+                  <tr><td>Documents</td><td>{r.visa.docs}</td></tr>
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+        )}
 
         <div className="page">
           <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>

@@ -134,15 +134,27 @@ export const PricingSchema = z.object({
 });
 export type Pricing = z.infer<typeof PricingSchema>;
 
+export interface VisaInfo {
+  type: string; validity: string; processing: string; fee: string; docs: string;
+}
+
 export interface ItineraryResult {
   meta: {
     destinationName: string; title: string; tagline: string;
     startDate: string; endDate: string; groupLabel: string;
     dietLabel: string; budgetLabel: string; visaNeeded: boolean;
     pulledAt: string;
+    /** Mandatory price/availability disclaimer — always present, always shown. */
+    disclaimer: string;
+    /** Origin airport (always AMD for Rise & Shine Travel, Ahmedabad). */
+    originAirport: string;
   };
-  flights: Flights;
-  hotels: Hotel[];
+  /** null when client hasn't requested flight assistance. */
+  flights: Flights | null;
+  /** null when client hasn't requested hotel assistance. */
+  hotels: Hotel[] | null;
+  /** null when client hasn't requested visa assistance. */
+  visa: VisaInfo | null;
   days: Day[];
   intel: Intel;
   pricing: Pricing;
