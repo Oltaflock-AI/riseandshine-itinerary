@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ai": "latest",
     "@ai-sdk/anthropic": "latest",
+    "ai": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
@@ -21,6 +21,10 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "playwright": "^1.60.0",
     "typescript": "latest"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }

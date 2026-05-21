@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
+import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({
+const display = Fraunces({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["500", "600", "700"],
   variable: "--f-display",
   display: "swap",
 });
 
-const body = Plus_Jakarta_Sans({
+const body = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--f-body",
@@ -17,8 +17,9 @@ const body = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Rise & Shine — AI Itinerary Generator",
-  description: "Live-data, hour-by-hour itineraries for Rise & Shine Travel, Ahmedabad.",
+  title: "Rise & Shine — Itinerary Planner",
+  description:
+    "Explore Rise & Shine Travel packages — day-by-day plans, indicative pricing, and instant inquiries.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

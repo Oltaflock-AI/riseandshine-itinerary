@@ -1,0 +1,50 @@
+[
+  {
+    "url": "https://www.riseandshinetravel.com/andaman-domestic-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/rajasthan-domestic-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/kerala-domestic-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/goa-domestic-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/golden-triangle-domestic-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/thailand-international-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/international-packages.html#",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/mauritius-international-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/hong-kong-macau-shenzhen-international-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/mauritius-with-dubai-international-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/singapore-bali-with-cruise-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "url": "https://www.riseandshinetravel.com/singapore-with-cruise-tour.html",
+    "error": "Error: page.evaluate: ReferenceError: url is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:22:16)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  }
+]

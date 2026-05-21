@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TripRequestSchema } from "@/lib/itinerary/schema";
-import { buildItinerary } from "@/lib/itinerary/build";
+import { buildCatalogItinerary } from "@/lib/catalog/build";
+import { isCatalogPackage } from "@/lib/catalog";
+import { DemoTripRequestSchema } from "@/lib/itinerary/schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = TripRequestSchema.safeParse(body);
+  const parsed = DemoTripRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid trip request", issues: parsed.error.flatten() },
@@ -21,8 +22,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!isCatalogPackage(parsed.data.destinationKey)) {
+    return NextResponse.json(
+      { error: "Package not available", detail: "This demo only includes catalog packages." },
+      { status: 404 },
+    );
+  }
+
   try {
-    const result = await buildItinerary(parsed.data);
+    const result = buildCatalogItinerary(parsed.data);
     return NextResponse.json(result);
   } catch (e) {
     console.error("itinerary build failed", e);

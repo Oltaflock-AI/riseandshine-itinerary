@@ -33,6 +33,29 @@ export const TimeBlockSchema = z.object({
 });
 export type TimeBlock = z.infer<typeof TimeBlockSchema>;
 
+/** Activity row for catalog / narrative packages (Rise & Shine brochure copy). */
+export const NarrativeActivitySchema = z.object({
+  period: z.string().describe("e.g. Morning, Afternoon, 14:00"),
+  title: z.string(),
+  detail: z.string(),
+  place: PlaceSchema.nullable(),
+});
+export type NarrativeActivity = z.infer<typeof NarrativeActivitySchema>;
+
+export const NarrativeDaySchema = z.object({
+  dayIndex: z.number(),
+  date: z.string().describe("YYYY-MM-DD"),
+  weekday: z.string(),
+  cityLabel: z.string(),
+  headline: z.string(),
+  overnight: z.string(),
+  activities: z.array(NarrativeActivitySchema),
+  efficiency: z.string().optional().default(""),
+  skip: z.array(z.string()).default([]),
+  blocks: z.array(TimeBlockSchema).default([]),
+});
+export type NarrativeDay = z.infer<typeof NarrativeDaySchema>;
+
 export const DaySchema = z.object({
   dayIndex: z.number(),
   date: z.string().describe("YYYY-MM-DD"),
@@ -42,6 +65,9 @@ export const DaySchema = z.object({
   efficiency: z.string().describe("one line on why this day is travel-efficient, e.g. 'tight Seminyak↔Canggu loop, ≤15 min hops'"),
   skip: z.array(z.string()).default([]).describe("what to deliberately NOT do today and why (1 short line each)"),
   blocks: z.array(TimeBlockSchema),
+  /** Catalog packages: brochure-style day plan. */
+  overnight: z.string().optional(),
+  activities: z.array(NarrativeActivitySchema).optional(),
 });
 export type Day = z.infer<typeof DaySchema>;
 
@@ -94,22 +120,52 @@ export const TripRequestSchema = z.object({
   clientPhone: z.string().default(""),
   email: z.string().email().optional(),
   destinationKey: z.string(),
-  durationNights: z.number().int().min(2).max(20),
-  budgetTier: z.union([z.literal(3), z.literal(4), z.literal(5)]),
+  durationNights: z.number().int().min(2).max(20).optional(),
+  budgetTier: z.union([z.literal(3), z.literal(4), z.literal(5)]).optional(),
   startDate: z.string(),
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(10).default(0), // ages 6–11
   infants:  z.number().int().min(0).max(6).default(0),  // ages 0–5
   childrenAges: z.array(z.number()).default([]),
-  diet: z.enum(["veg", "jain", "non-veg", "mixed"]).default("veg"),
-  interests: z.array(z.string()).default([]),
-  travelStyle: z.enum(["touristy", "balanced", "offbeat"]).default("balanced"),
-  groupType: z.enum(["family", "solo", "honeymoon", "bikers"]).default("family"),
-  visaNeeded: z.boolean().default(false),
-  flightAssist: z.boolean().default(false),
-  hotelAssist:  z.boolean().default(false),
+  diet: z.enum(["veg", "jain", "non-veg", "mixed"]).default("veg").optional(),
+  interests: z.array(z.string()).default([]).optional(),
+  travelStyle: z.enum(["touristy", "balanced", "offbeat"]).default("balanced").optional(),
+  groupType: z.enum(["family", "solo", "honeymoon", "bikers"]).default("family").optional(),
+  visaNeeded: z.boolean().default(false).optional(),
+  flightAssist: z.boolean().default(true).optional(),
+  hotelAssist:  z.boolean().default(true).optional(),
 });
 export type TripRequest = z.infer<typeof TripRequestSchema>;
+
+/** Demo / website visitor — catalog packages only (keep in sync with lib/catalog/types.ts). */
+export { type CatalogPackageKey as CatalogDestinationKey } from "@/lib/catalog/types";
+
+import type { CatalogPackageKey } from "@/lib/catalog/types";
+
+export const CATALOG_DESTINATION_KEYS = [
+  "andaman",
+  "rajasthan",
+  "kerala",
+  "goa",
+  "golden-triangle",
+  "thailand",
+  "mauritius",
+  "hong-kong",
+  "mauritius-dubai",
+  "singapore-cruise",
+  "singapore-bali-cruise",
+] as const satisfies readonly CatalogPackageKey[];
+
+export const DemoTripRequestSchema = z.object({
+  clientName: z.string().min(1),
+  clientPhone: z.string().min(8),
+  destinationKey: z.enum(CATALOG_DESTINATION_KEYS),
+  startDate: z.string(),
+  adults: z.number().int().min(1).max(20),
+  children: z.number().int().min(0).max(10).default(0),
+  infants: z.number().int().min(0).max(6).default(0),
+});
+export type DemoTripRequest = z.infer<typeof DemoTripRequestSchema>;
 
 export const PriceRow = z.object({
   label: z.string(),
@@ -165,4 +221,6 @@ export interface ItineraryResult {
     intel:   "live" | "sample";
     engine:  "live" | "sample";
   };
+  /** Catalog brochure itinerary (no hour-by-hour AI). */
+  packageMode?: "catalog";
 }

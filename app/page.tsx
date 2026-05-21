@@ -2,120 +2,195 @@
 
 import { useRef, useState } from "react";
 import Script from "next/script";
-import type { ItineraryResult, Day, TimeBlock, Place } from "@/lib/itinerary/schema";
-import { DESTINATIONS } from "@/lib/destinations";
+import type {
+  Day,
+  ItineraryResult,
+  NarrativeActivity,
+  Place,
+} from "@/lib/itinerary/schema";
+import {
+  CATALOG_PACKAGES,
+  PACKAGE_LIST,
+  isCatalogPackage,
+  type CatalogPackageKey,
+} from "@/lib/catalog";
+import { buildInquiryMessage } from "@/lib/catalog/build";
+import type { PackageCategory } from "@/lib/catalog";
 
-const DESTS = [
-  ["thailand", "Thailand — Bangkok & Phuket"],
-  ["kerala", "Kerala — God's Own Country"],
-  ["mauritius", "Mauritius — Indian Ocean"],
-  ["maldives", "Maldives — Overwater"],
-  ["rajasthan", "Rajasthan — Land of Kings"],
-  ["bali", "Bali — Island of the Gods"],
+const AGENCY_WHATSAPP = "917923297232";
+
+const CATEGORIES: { id: PackageCategory; label: string; flag: string }[] = [
+  { id: "domestic", label: "Domestic", flag: "🇮🇳" },
+  { id: "international", label: "International", flag: "✈️" },
+  { id: "cruise", label: "Cruise", flag: "🚢" },
 ];
-const INTERESTS = ["Beach", "Sightseeing", "Shopping", "Family", "Adventure", "Wildlife", "Wellness", "Culture", "Self drive", "Night life"];
-const KIND_ICON: Record<string, string> = {
-  travel: "✈️", transfer: "🚐", checkin: "🏨", sightseeing: "🏛️",
-  activity: "🎟️", meal: "🍽️", leisure: "🌴",
-};
-const inr = (usd: number, fx: number) => "₹" + Math.round(usd * fx).toLocaleString("en-IN");
+
 const fmtDate = (iso: string) => {
-  if (!iso) return "";
   const d = new Date(iso + "T00:00:00Z");
-  return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 };
+
 const fmtRange = (a: string, b: string) => {
-  const da = new Date(a + "T00:00:00Z"), db = new Date(b + "T00:00:00Z");
+  const da = new Date(a + "T00:00:00Z");
+  const db = new Date(b + "T00:00:00Z");
   const sameY = da.getUTCFullYear() === db.getUTCFullYear();
-  const left = da.toLocaleString("en-GB", { day: "numeric", month: "short", ...(sameY ? {} : { year: "numeric" }), timeZone: "UTC" });
-  const right = db.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const left = da.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    ...(sameY ? {} : { year: "numeric" }),
+    timeZone: "UTC",
+  });
+  const right = db.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
   return `${left} – ${right}`;
 };
 
-declare global { interface Window { html2pdf: any } }
+const inr = (usd: number, fx: number) =>
+  "₹" + Math.round(usd * fx).toLocaleString("en-IN");
+
+declare global {
+  interface Window {
+    html2pdf: unknown;
+  }
+}
+
+type Step = "packages" | "details" | "itinerary";
 
 export default function Page() {
-  const [f, setF] = useState({
-    clientName: "Rajesh Sharma", clientPhone: "+91 98250 11111", email: "",
-    destinationKey: "thailand", durationNights: 7, budgetTier: 4,
-    startDate: "2026-06-15",
-    adults: 2, children: 2, infants: 0,
-    diet: "veg",
-    travelStyle: "balanced", groupType: "family",
-    visaNeeded: true, flightAssist: false, hotelAssist: false,
-  });
-  const [interests, setInterests] = useState<string[]>(["Beach", "Family"]);
-  const [scope, setScope] = useState<"domestic" | "international">("international");
+  const [step, setStep] = useState<Step>("packages");
+  const [category, setCategory] = useState<PackageCategory>("domestic");
+  const [packageKey, setPackageKey] = useState<CatalogPackageKey | null>(null);
+
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [startDate, setStartDate] = useState("2026-06-15");
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [errToggle, setErrToggle] = useState<"flights" | "hotels" | null>(null);
   const [result, setResult] = useState<ItineraryResult | null>(null);
-  const [editedDays, setEditedDays] = useState<Day[] | null>(null);
-  const [editMode, setEditMode] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
 
-  const up = (k: string, v: any) => setF((s) => ({ ...s, [k]: v }));
+  const selectedPkg = packageKey
+    ? CATALOG_PACKAGES[packageKey as CatalogPackageKey]
+    : null;
+  const visiblePackages = PACKAGE_LIST.filter((p) => p.category === category);
 
   async function generate() {
-    setErr(null); setErrToggle(null); setLoading(true); setResult(null);
-    setEditedDays(null); setEditMode(false);
+    if (!packageKey) return;
+    setErr(null);
+    setLoading(true);
+    setResult(null);
     try {
-      const { email, ...rest } = f;
       const r = await fetch("/api/itinerary", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...rest,
-          ...(email && email.trim() ? { email: email.trim() } : {}),
-          durationNights: Number(f.durationNights),
-          budgetTier: Number(f.budgetTier),
-          adults: Number(f.adults),
-          children: Number(f.children),
-          infants: Number(f.infants),
-          interests,
+          clientName: clientName.trim() || "Guest",
+          clientPhone: clientPhone.trim(),
+          destinationKey: packageKey,
+          startDate,
+          adults: Number(adults),
+          children: Number(children),
+          infants: Number(infants),
         }),
       });
       const j = await r.json();
-      if (!r.ok) {
-        if (j?.error === "live_provider_unavailable" && (j.which === "flights" || j.which === "hotels")) {
-          setErrToggle(j.which);
-          throw new Error(`Live ${j.which} provider not configured — see Setup.`);
-        }
-        throw new Error(j.detail || j.error || "Failed");
-      }
+      if (!r.ok) throw new Error(j.detail || j.error || "Failed to build itinerary");
       setResult(j as ItineraryResult);
-    } catch (e: any) {
-      setErr(e.message || "Something went wrong");
+      setStep("itinerary");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
   }
 
   function downloadPDF() {
-    if (!docRef.current || !window.html2pdf) return;
-    window.html2pdf().set({
-      margin: 0,
-      filename: `RiseAndShine_${result?.meta.destinationName}_${f.clientName}`.replace(/\s+/g, "_") + ".pdf",
-      image: { type: "jpeg", quality: 0.96 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      pagebreak: { mode: ["css", "avoid-all"] },
-    }).from(docRef.current).save();
+    if (!docRef.current || !window.html2pdf || !result) return;
+    const html2pdf = window.html2pdf as () => {
+      set: (o: object) => { from: (el: HTMLElement) => { save: () => void } };
+    };
+    html2pdf()
+      .set({
+        margin: 0,
+        filename:
+          `RiseAndShine_${result.meta.destinationName}_${clientName}`.replace(
+            /\s+/g,
+            "_",
+          ) + ".pdf",
+        image: { type: "jpeg", quality: 0.96 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "avoid-all"] },
+      })
+      .from(docRef.current)
+      .save();
   }
 
-  function whatsapp() {
-    if (!result) return;
-    let n = f.clientPhone.replace(/\D/g, "");
-    if (n.length === 10) n = "91" + n;
-    const msg = `Dear ${f.clientName.split(" ")[0]}, your customised ${result.meta.destinationName} itinerary from Rise & Shine Travel.`;
-    window.open(`https://wa.me/${n}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+  function sendInquiry() {
+    if (!result || !packageKey) return;
+    const msg = buildInquiryMessage(
+      {
+        clientName: clientName.trim() || "Guest",
+        clientPhone: clientPhone.trim(),
+        destinationKey: packageKey,
+        startDate,
+        adults: Number(adults),
+        children: Number(children),
+        infants: Number(infants),
+      },
+      result,
+    );
+    window.open(
+      `https://wa.me/${AGENCY_WHATSAPP}?text=${encodeURIComponent(msg)}`,
+      "_blank",
+      "noopener",
+    );
+  }
+
+  function pickPackage(key: CatalogPackageKey) {
+    setPackageKey(key);
+    setStep("details");
+    setResult(null);
+    setErr(null);
+  }
+
+  function backToPackages() {
+    setStep("packages");
+    setResult(null);
+    setErr(null);
   }
 
   return (
     <>
-      <Script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" strategy="lazyOnload" />
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        strategy="lazyOnload"
+      />
       <header className="topbar">
-        <a className="logo" href="https://www.riseandshinetravel.com/" target="_blank" rel="noopener noreferrer">
-          <img className="brand-img" src="/assets/logo.png" alt="Rise & Shine Travel" />
+        <a
+          className="logo"
+          href="https://www.riseandshinetravel.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            className="brand-img"
+            src="/assets/logo.png"
+            alt="Rise & Shine Travel"
+          />
           <div className="wm">
             <b>Rise &amp; Shine</b>
             <span>TRAVEL · AHMEDABAD</span>
@@ -123,527 +198,626 @@ export default function Page() {
         </a>
         <div className="topdiv" />
         <div className="toptitle">
-          <b>AI Itinerary Generator</b>
-          <span>Live tool · v2.0 · IATTE member</span>
+          <b>Itinerary Planner</b>
+          <span>Explore packages · Plan your trip</span>
         </div>
         <div className="topright">
-          <div className="livebadge"><span className="dot" />LIVE</div>
+          <div className="livebadge demo-badge">
+            <span className="dot" />
+            Official packages
+          </div>
         </div>
       </header>
 
+      <nav className="stepper" aria-label="Booking steps">
+        <span className={"stepper-step" + (step === "packages" ? " on" : "")}>
+          1 · Choose package
+        </span>
+        <span className="stepper-sep" aria-hidden />
+        <span className={"stepper-step" + (step === "details" ? " on" : "")}>
+          2 · Your details
+        </span>
+        <span className="stepper-sep" aria-hidden />
+        <span
+          className={
+            "stepper-step" + (step === "itinerary" ? " on" : "")
+          }
+        >
+          3 · Your itinerary
+        </span>
+      </nav>
+
       <div className="layout">
-        <aside className="form-panel">
-          <div className="formhead">
-            <div className="hd-left">
-              <div className="eyebrow">Build a trip</div>
-              <h2>Plan the journey</h2>
+        {step === "packages" && (
+          <section className="flow-section">
+            <div className="flow-head">
+              <p className="eyebrow">Step 1 of 3</p>
+              <h1>Choose your package</h1>
+              <p className="flow-sub">
+                Same categories as{" "}
+                <a
+                  href="https://www.riseandshinetravel.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  riseandshinetravel.com
+                </a>
+                — pick a trip, then enter your dates and travellers.
+              </p>
             </div>
-            <p>Fill the brief — branded, hour-by-hour plan from live data.</p>
-          </div>
-          <div className="formbody">
-          <div className="formcols">
-          <div className="formcol">
-          <div className="section-title"><span className="st-ic">👤</span>Client</div>
-          <div className="fg"><label>Client name</label>
-            <input value={f.clientName} onChange={(e) => up("clientName", e.target.value)} /></div>
-          <div className="fg"><label>Contact (WhatsApp)</label>
-            <input value={f.clientPhone} onChange={(e) => up("clientPhone", e.target.value)} /></div>
-          <div className="fg"><label>Email <span style={{ color: "var(--ink-faint)", fontWeight: 500 }}>(optional)</span></label>
-            <input type="email" placeholder="client@example.com" value={f.email}
-              onChange={(e) => up("email", e.target.value)} /></div>
-          </div>
 
-          <div className="formcol">
-          <div className="section-title"><span className="st-ic">📍</span>Trip</div>
-          <div className="fg"><label>Destination scope</label>
-            <div className="scope-pill">
-              <button type="button" aria-pressed={scope === "domestic"}
-                onClick={() => {
-                  setScope("domestic");
-                  const first = DESTS.find(([k]) => DESTINATIONS[k as string]?.international === false);
-                  if (first && f.destinationKey !== first[0]) up("destinationKey", first[0]);
-                }}>🇮🇳 Domestic</button>
-              <button type="button" aria-pressed={scope === "international"}
-                onClick={() => {
-                  setScope("international");
-                  const first = DESTS.find(([k]) => DESTINATIONS[k as string]?.international === true);
-                  if (first && f.destinationKey !== first[0]) up("destinationKey", first[0]);
-                }}>✈️ International</button>
-            </div></div>
-          <div className="fg"><label>Destination</label>
-            <select value={f.destinationKey} onChange={(e) => up("destinationKey", e.target.value)}>
-              {DESTS
-                .filter(([k]) => DESTINATIONS[k as string]?.international === (scope === "international"))
-                .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select></div>
-          <div className="row2">
-            <div className="fg"><label>Nights</label>
-              <input type="number" min={2} max={20} value={f.durationNights}
-                onChange={(e) => up("durationNights", e.target.value)} /></div>
-            <div className="fg"><label>Budget tier</label>
-              <select value={f.budgetTier} onChange={(e) => up("budgetTier", e.target.value)}>
-                <option value={3}>Budget (3★)</option>
-                <option value={4}>Mid-range (4★)</option>
-                <option value={5}>Luxury (5★)</option>
-              </select></div>
-          </div>
-          <div className="fg"><label>Travel date</label>
-            <input type="date" value={f.startDate} onChange={(e) => up("startDate", e.target.value)} /></div>
-          </div>
-
-          <div className="formcol">
-          <div className="section-title"><span className="st-ic">👥</span>Group &amp; preferences</div>
-          <div className="row2">
-            <div className="fg"><label>Adults</label>
-              <input type="number" min={1} max={20} value={f.adults}
-                onChange={(e) => up("adults", e.target.value)} /></div>
-            <div className="fg"><label>Children (6–11 yrs)</label>
-              <input type="number" min={0} max={10} value={f.children}
-                onChange={(e) => up("children", e.target.value)} /></div>
-          </div>
-          <div className="fg"><label>Infants (0–5 yrs)</label>
-            <input type="number" min={0} max={6} value={f.infants}
-              onChange={(e) => up("infants", e.target.value)} /></div>
-          <div className="fg"><label>Dietary preference</label>
-            <select value={f.diet} onChange={(e) => up("diet", e.target.value)}>
-              <option value="veg">Vegetarian</option>
-              <option value="jain">Jain</option>
-              <option value="non-veg">Non-Vegetarian</option>
-              <option value="mixed">Mixed</option>
-            </select></div>
-          <div className="row2">
-            <div className="fg"><label>Travel style</label>
-              <select title="Travel style" value={f.travelStyle} onChange={(e) => up("travelStyle", e.target.value)}>
-                <option value="touristy">Touristy — famous icons</option>
-                <option value="balanced">Balanced — mix</option>
-                <option value="offbeat">Off-beat — skip the crush</option>
-              </select></div>
-            <div className="fg"><label>Traveller profile</label>
-              <select title="Traveller profile" value={f.groupType} onChange={(e) => {
-                const v = e.target.value as "family" | "solo" | "honeymoon" | "bikers";
-                setF((s) => ({
-                  ...s,
-                  groupType: v,
-                  ...(v === "honeymoon" ? { adults: 2 } : {}),
-                  ...(v === "solo"      ? { adults: 1 } : {}),
-                }));
-              }}>
-                <option value="family">Family</option>
-                <option value="solo">Solo traveller</option>
-                <option value="honeymoon">Honeymoon</option>
-                <option value="bikers">Bike riders</option>
-              </select></div>
-          </div>
-          <div className="fg"><label>Interests</label>
-            <div className="chips">
-              {INTERESTS.map((i) => (
-                <span key={i} className={"chip" + (interests.includes(i) ? " on" : "")}
-                  onClick={() => setInterests((s) => s.includes(i) ? s.filter((x) => x !== i) : [...s, i])}>{i}</span>
+            <div className="cat-row">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={"cat-btn" + (category === c.id ? " on" : "")}
+                  onClick={() => setCategory(c.id)}
+                >
+                  <span>{c.flag}</span> {c.label}
+                </button>
               ))}
-            </div></div>
-          </div>
-          </div>
+            </div>
 
-          <div className="formfoot">
-            <div className="ff-assist">
-              <div className="section-title section-title-inline"><span className="st-ic">🎫</span>Booking assistance</div>
-              <div className="toggle-row">
-                <button type="button"
-                  className={"butter-toggle" + (errToggle === "flights" ? " warn" : "")}
-                  aria-pressed={f.flightAssist}
-                  onClick={() => up("flightAssist", !f.flightAssist)}>
-                  <span className="dot" />✈️ Flight assistance
-                </button>
-                <button type="button"
-                  className={"butter-toggle" + (errToggle === "hotels" ? " warn" : "")}
-                  aria-pressed={f.hotelAssist}
-                  onClick={() => up("hotelAssist", !f.hotelAssist)}>
-                  <span className="dot" />🏨 Hotel assistance
-                </button>
-                <button type="button"
-                  className="butter-toggle"
-                  aria-pressed={f.visaNeeded}
-                  onClick={() => up("visaNeeded", !f.visaNeeded)}>
-                  <span className="dot" />🛂 Visa assistance
-                </button>
+            {visiblePackages.length === 0 ? (
+              <div className="coming-soon">
+                <p>No packages found in this category. Please choose another tab.</p>
               </div>
-              <p className="hint">Flight / Hotel ON = live options (cheapest + 4 alternatives) from Amadeus.</p>
-            </div>
-            <div className="ff-cta">
-              <button className="btn btn-primary" disabled={loading} onClick={generate}>
-                {loading
-                  ? <><span className="spin" />&nbsp;Building live itinerary…</>
-                  : <><svg className="cta-ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18l-2.2-5.8L3.5 10l6.3-1.7z"/></svg>Generate Live Itinerary</>}
-              </button>
-              <div className="gennote">Live flights, hotels &amp; places · ~20 seconds</div>
-              {err && <p style={{ color: "#dc2626", fontSize: 12, marginTop: 8 }}>⚠ {err}</p>}
-            </div>
-          </div>
-          </div>
-        </aside>
+            ) : (
+              <div className="pkg-grid">
+                {visiblePackages.map((pkg) => (
+                  <button
+                    key={pkg.key}
+                    type="button"
+                    className="pkg-card"
+                    onClick={() => pickPackage(pkg.key)}
+                  >
+                    <img
+                      src={pkg.heroImageUrl}
+                      alt={pkg.name}
+                      loading="lazy"
+                      onError={(e) => {
+                        const el = e.currentTarget;
+                        if (el.dataset.fallback) return;
+                        el.dataset.fallback = "1";
+                        el.src =
+                          "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&q=80";
+                      }}
+                    />
+                    <div className="pkg-overlay">
+                      <h3>{pkg.name.toUpperCase()}</h3>
+                      <p>
+                        {pkg.durationDays} days · {pkg.durationNights} nights
+                      </p>
+                      <span className="pkg-route">{pkg.routeSummary}</span>
+                      <span className="pkg-cta">Explore itinerary →</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-        <main className="preview-panel">
-          {!result && !loading && (
-            <div className="empty">
-              <div className="ic">🗺️</div>
-              <h2 style={{ color: "var(--ink)", marginBottom: 6 }}>No itinerary yet</h2>
-              <p style={{ maxWidth: 440 }}>Fill the client details and hit <b>Generate</b>. A branded, hour-by-hour
-                plan built from live flights, hotels, places & traveller intel appears here.</p>
+        {step === "details" && selectedPkg && (
+          <section className="flow-section details-step">
+            <button type="button" className="back-link" onClick={backToPackages}>
+              ← All packages
+            </button>
+            <div className="selected-pkg-banner">
+              <img
+                src={selectedPkg.heroImageUrl}
+                alt=""
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  if (el.dataset.fallback) return;
+                  el.dataset.fallback = "1";
+                  el.src =
+                    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&q=80";
+                }}
+              />
+              <div>
+                <p className="eyebrow">{selectedPkg.tourName}</p>
+                <h2>{selectedPkg.title}</h2>
+                <p>{selectedPkg.routeSummary}</p>
+                <p className="fixed-nights">
+                  Fixed schedule · {selectedPkg.durationDays} days /{" "}
+                  {selectedPkg.durationNights} nights
+                </p>
+              </div>
             </div>
-          )}
-          {loading && (
-            <div className="empty">
-              <div className="ic"><span className="spin" /></div>
-              <h2 style={{ color: "var(--ink)", marginBottom: 6 }}>Compiling live itinerary…</h2>
-              <p style={{ maxWidth: 440 }}>Fetching flights (Amadeus), hotels, attractions & restaurants
-                (Google Places), traveller intel (Reddit), composing the hour-by-hour plan (Claude).</p>
+
+            <div className="form-panel compact-form">
+              <div className="formhead">
+                <div className="hd-left">
+                  <div className="eyebrow">Step 2 of 3</div>
+                  <h2>Your details</h2>
+                </div>
+              </div>
+              <div className="formbody">
+                <div className="formcols formcols-2">
+                  <div className="fg">
+                    <label>Your name</label>
+                    <input
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Phone (WhatsApp)</label>
+                    <input
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Travel start date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Travellers</label>
+                    <div className="row2">
+                      <div className="fg" style={{ marginBottom: 0 }}>
+                        <label>Adults</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={adults}
+                          onChange={(e) => setAdults(Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="fg" style={{ marginBottom: 0 }}>
+                        <label>Children (6–11)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={6}
+                          value={children}
+                          onChange={(e) => setChildren(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="fg" style={{ marginTop: 11 }}>
+                      <label>Infants (0–5)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={4}
+                        value={infants}
+                        onChange={(e) => setInfants(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="formfoot formfoot-single">
+                  <button
+                    className="btn btn-primary"
+                    disabled={loading || !clientName.trim() || !clientPhone.trim()}
+                    onClick={generate}
+                  >
+                    {loading ? (
+                      <>
+                        <span className="spin" />
+                        &nbsp;Building your itinerary…
+                      </>
+                    ) : (
+                      <>View your day-by-day plan</>
+                    )}
+                  </button>
+                  {err && (
+                    <p className="form-err">⚠ {err}</p>
+                  )}
+                  <p className="gennote">
+                    Indicative pricing · 4★ hotels · No account required
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
-          {result && <Itinerary
-            r={result}
-            days={editedDays ?? result.days}
-            editMode={editMode}
-            onEditToggle={() => {
-              if (!editMode && !editedDays) setEditedDays(result.days);
-              setEditMode((v) => !v);
-            }}
-            onReset={() => { setEditedDays(null); setEditMode(false); }}
-            setDays={(d) => setEditedDays(d)}
-            docRef={docRef} onPDF={downloadPDF} onWA={whatsapp} />}
-        </main>
+          </section>
+        )}
+
+        {step === "itinerary" && result && packageKey && (
+          <main className="preview-panel full-preview">
+            <ItineraryView
+              r={result}
+              packageKey={packageKey}
+              clientName={clientName}
+              onBack={() => setStep("details")}
+              onInquiry={sendInquiry}
+              onPDF={downloadPDF}
+              docRef={docRef}
+            />
+          </main>
+        )}
       </div>
     </>
   );
 }
 
-function Fresh({ s }: { s: "live" | "sample" | "indicative" }) {
-  // User-facing: no "sample" / "API key" language. Live = neutral green tick.
-  // Indicative/sample = no badge at all (data still shown, just unlabelled).
-  if (s === "live") return <span className="live"><span className="dot" />Verified</span>;
-  return null;
+function NarrativeActivityCard({ a }: { a: NarrativeActivity }) {
+  const hero = a.place?.photoUrl;
+  return (
+    <article className={"narr-act" + (hero ? " has-hero" : "")}>
+      <div className="narr-period">{a.period}</div>
+      <div className="narr-body">
+        <div className="narr-copy">
+          <h4 className="btitle">{a.title}</h4>
+          <p className="bdetail">{a.detail}</p>
+          {a.place && !hero && <PlaceChip p={a.place} />}
+        </div>
+        {hero && a.place && (
+          <a
+            className="bhero"
+            href={a.place.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${a.place.name} on map`}
+          >
+            <img src={hero} alt={a.place.name} loading="lazy" />
+            <div className="bhero-tag">
+              {a.place.rating ? `★ ${a.place.rating}` : "Place"} ·{" "}
+              {a.place.category}
+            </div>
+          </a>
+        )}
+      </div>
+    </article>
+  );
 }
 
 function PlaceChip({ p }: { p: Place }) {
   return (
-    <a className="placechip" href={p.mapsUrl} target="_blank" rel="noopener">
-      {p.photoUrl ? <img src={p.photoUrl} alt={p.name} /> : <div className="placechip" style={{ width: 54, height: 54, padding: 0, justifyContent: "center" }}>📍</div>}
+    <a className="placechip" href={p.mapsUrl} target="_blank" rel="noopener noreferrer">
+      {p.photoUrl ? (
+        <img src={p.photoUrl} alt={p.name} />
+      ) : (
+        <div className="placechip-fallback">📍</div>
+      )}
       <div>
         <div className="pn">{p.name}</div>
-        <div className="pm">{p.category}{p.rating ? ` · ★ ${p.rating}` : ""}{p.tag ? ` · ${p.tag}` : ""}</div>
+        <div className="pm">
+          {p.category}
+          {p.rating ? ` · ★ ${p.rating}` : ""}
+        </div>
       </div>
     </a>
   );
 }
 
-function Block({ b }: { b: TimeBlock }) {
-  const isSight = b.kind === "sightseeing" || b.kind === "activity";
-  const hero = isSight && b.place?.photoUrl ? b.place.photoUrl : null;
+function NarrativeDayCard({ d }: { d: Day }) {
+  const acts = d.activities ?? [];
   return (
-    <div className={"blk" + (hero ? " has-hero" : "")}>
-      <div className="btime">{b.start}<br />–<br />{b.end}</div>
-      <div className="brail"><div className="bicon">{KIND_ICON[b.kind] ?? "•"}</div><div className="bline" /></div>
-      <div className="bbody">
-        {hero && (
-          <a className="bhero" href={b.place!.mapsUrl} target="_blank" rel="noopener">
-            <img src={hero} alt={b.place!.name} loading="lazy" />
-            <div className="bhero-tag">
-              {b.place!.rating ? `★ ${b.place!.rating}` : "📍"} {b.place!.category}
-            </div>
-          </a>
-        )}
-        <div className="btitle">{b.title}{b.kind === "meal" && <span className="kpill">choose 1</span>}</div>
-        <div className="bdetail">{b.detail}</div>
-        {b.place && !hero && <PlaceChip p={b.place} />}
-        {b.options?.length > 0 && (
-          <div className="opts">
-            {b.options.map((o, i) => (
-              <a key={i} className="opt" href={o.mapsUrl} target="_blank" rel="noopener">
-                {o.photoUrl
-                  ? <img src={o.photoUrl} alt={o.name} loading="lazy" />
-                  : <div className="opt-fallback">🍽️</div>}
-                <div><div className="on">{o.name}</div>
-                  <div className="om">{o.vegFriendly ? "veg-friendly" : o.category}{o.rating ? ` · ★ ${o.rating}` : ""}</div></div>
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DayCard({ d, editMode, onChange }: { d: Day; editMode: boolean; onChange: (nd: Day) => void }) {
-  const setBlock = (i: number, nb: TimeBlock) =>
-    onChange({ ...d, blocks: d.blocks.map((x, j) => (j === i ? nb : x)) });
-  const delBlock = (i: number) =>
-    onChange({ ...d, blocks: d.blocks.filter((_, j) => j !== i) });
-  const addBlock = () =>
-    onChange({
-      ...d,
-      blocks: [...d.blocks, {
-        start: "12:00", end: "13:00", kind: "leisure",
-        title: "New block", detail: "Describe this slot.", place: null, options: [],
-      }],
-    });
-  return (
-    <div className="day">
+    <div className="day narrative-day">
       <div className="dhead">
         <div>
           <span className="dn">DAY {d.dayIndex + 1}</span>
-          {editMode
-            ? <input className="edit-input headline" value={d.headline}
-                onChange={(e) => onChange({ ...d, headline: e.target.value })} />
-            : <span className="dt">{d.headline}</span>}
+          <span className="dt">{d.headline}</span>
         </div>
-        <div className="dd">{d.weekday}, {d.date} · {d.cityLabel}</div>
+        <div className="dd">
+          {d.weekday}, {fmtDate(d.date)} · {d.cityLabel}
+        </div>
       </div>
-      {d.efficiency && <div className="effic">🧭 <b>Travel-efficient:</b> {d.efficiency}</div>}
-      <div className="tl">
-        {d.blocks.map((b, i) => editMode
-          ? <BlockEdit key={i} b={b} onChange={(nb) => setBlock(i, nb)} onDelete={() => delBlock(i)} />
-          : <Block key={i} b={b} />)}
-        {editMode && (
-          <button type="button" className="ba add-block" onClick={addBlock}>+ Add block</button>
-        )}
+      <div className="narr-tl">
+        {acts.map((a, i) => (
+          <NarrativeActivityCard key={i} a={a} />
+        ))}
       </div>
-      {d.skip?.length > 0 && (
-        <div className="skip">
-          <div className="sl">⛔ Skip today</div>
-          <ul>{d.skip.map((s, i) => <li key={i}>{s}</li>)}</ul>
+      {d.overnight && (
+        <div className="overnight">
+          🌙 <b>Overnight:</b> {d.overnight}
         </div>
       )}
     </div>
   );
 }
 
-function BlockEdit({ b, onChange, onDelete }: {
-  b: TimeBlock; onChange: (nb: TimeBlock) => void; onDelete: () => void;
-}) {
-  return (
-    <div className="blk edit">
-      <div className="btime">
-        <input className="edit-input time" type="time" value={b.start}
-          onChange={(e) => onChange({ ...b, start: e.target.value })} />
-        <input className="edit-input time" type="time" value={b.end}
-          onChange={(e) => onChange({ ...b, end: e.target.value })} />
-      </div>
-      <div className="brail"><div className="bicon">{KIND_ICON[b.kind] ?? "•"}</div><div className="bline" /></div>
-      <div className="bbody">
-        <div className="be-row">
-          <input className="edit-input title" value={b.title}
-            onChange={(e) => onChange({ ...b, title: e.target.value })} />
-          <button type="button" className="del-btn" onClick={onDelete} aria-label="Remove block">×</button>
-        </div>
-        <textarea className="edit-input detail" rows={2} value={b.detail}
-          onChange={(e) => onChange({ ...b, detail: e.target.value })} />
-        {b.place && <PlaceChip p={b.place} />}
-        {b.options?.length > 0 && (
-          <div className="opts">
-            {b.options.map((o, i) => (
-              <button type="button" key={i} className="opt as-btn"
-                onClick={() => {
-                  // Move clicked option to position 0 (primary).
-                  const reordered = [o, ...b.options.filter((_, j) => j !== i)];
-                  onChange({ ...b, options: reordered });
-                }}>
-                <div><div className="on">{i === 0 ? "★ " : ""}{o.name}</div>
-                  <div className="om">{o.vegFriendly ? "veg-friendly" : o.category}{o.rating ? ` · ★ ${o.rating}` : ""}</div></div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Itinerary({ r, days, editMode, onEditToggle, onReset, setDays, docRef, onPDF, onWA }: {
-  r: ItineraryResult; days: Day[];
-  editMode: boolean; onEditToggle: () => void; onReset: () => void;
-  setDays: (d: Day[]) => void;
+function ItineraryView({
+  r,
+  packageKey,
+  clientName,
+  onBack,
+  onInquiry,
+  onPDF,
+  docRef,
+}: {
+  r: ItineraryResult;
+  packageKey: CatalogPackageKey;
+  clientName: string;
+  onBack: () => void;
+  onInquiry: () => void;
+  onPDF: () => void;
   docRef: React.RefObject<HTMLDivElement | null>;
-  onPDF: () => void; onWA: () => void;
 }) {
   const fx = r.pricing.fx;
-  const updateDay = (i: number, nd: Day) => setDays(days.map((x, j) => (j === i ? nd : x)));
+  const pkg = CATALOG_PACKAGES[packageKey];
+
   return (
-    <>
-      <div className="toolbar">
-        <div>
-          <div style={{ fontWeight: 700 }}>{r.meta.title}</div>
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>
-            {fmtRange(r.meta.startDate, r.meta.endDate)} · {r.meta.groupLabel}</div>
-        </div>
-        <div className="acts">
-          <button type="button" className={"ba" + (editMode ? " dl" : "")} onClick={onEditToggle}>
-            {editMode ? "💾 Save edits" : "✏️ Edit itinerary"}
-          </button>
-          {editMode && <button type="button" className="ba" onClick={onReset}>↺ Reset</button>}
-          <button type="button" className="ba" onClick={onWA}>📱 WhatsApp</button>
-          <button type="button" className="ba dl" onClick={onPDF}>⬇ Download PDF</button>
+    <div className="itin-shell">
+      <div className="itin-actions-sticky">
+        <div className="toolbar">
+          <div>
+            <button type="button" className="back-link inline" onClick={onBack}>
+              ← Edit details
+            </button>
+            <div style={{ fontWeight: 700, marginTop: 6, fontFamily: "var(--f-display-stack)" }}>
+              {r.meta.title}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              {fmtRange(r.meta.startDate, r.meta.endDate)} · {r.meta.groupLabel}
+              {clientName ? ` · ${clientName}` : ""}
+            </div>
+          </div>
+          <div className="acts">
+            <button type="button" className="ba inquiry-btn" onClick={onInquiry}>
+              Send inquiry
+            </button>
+            <button type="button" className="ba dl" onClick={onPDF}>
+              Download PDF
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="doc" ref={docRef}>
         <div className="cover">
           <div className="bc">
-            <div className="brand-logo-chip"><img src="/assets/logo.png" alt="Rise & Shine" /></div>
-            <div><h3>Rise &amp; Shine Travel</h3><p>Ahmedabad · IATTE · BNI · ADTOI · Gujarat Tourism</p></div>
+            <div className="brand-logo-chip">
+              <img src="/assets/logo.png" alt="Rise & Shine" />
+            </div>
+            <div>
+              <h3>Rise &amp; Shine Travel</h3>
+              <p>Ahmedabad · IATTE · BNI · ADTOI · Gujarat Tourism</p>
+            </div>
           </div>
-          <div className="tag">Customised Itinerary</div>
+          <div className="tag">{pkg?.tourName ?? r.meta.title}</div>
           <h1>{r.meta.title}</h1>
           <div className="sub">{r.meta.tagline}</div>
           <div className="grid">
-            <div className="gi"><div className="l">Prepared for</div><div className="v">{r.meta.groupLabel}</div></div>
-            <div className="gi"><div className="l">Dates</div><div className="v">{fmtRange(r.meta.startDate, r.meta.endDate)}</div></div>
-            <div className="gi"><div className="l">Tier</div><div className="v">{r.meta.budgetLabel}</div></div>
-            <div className="gi"><div className="l">Diet</div><div className="v">{r.meta.dietLabel}</div></div>
+            <div className="gi">
+              <div className="l">Prepared for</div>
+              <div className="v">{clientName || r.meta.groupLabel}</div>
+            </div>
+            <div className="gi">
+              <div className="l">Dates</div>
+              <div className="v">{fmtRange(r.meta.startDate, r.meta.endDate)}</div>
+            </div>
+            <div className="gi">
+              <div className="l">Route</div>
+              <div className="v">{pkg?.routeSummary ?? "—"}</div>
+            </div>
+            <div className="gi">
+              <div className="l">Travellers</div>
+              <div className="v">{r.meta.groupLabel}</div>
+            </div>
           </div>
         </div>
 
         <div className="page">
-          <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
-            <div className="pn">Pricing &amp; Booking Estimate</div></div>
-
-          <div className="h2">Indicative Package Pricing</div>
-          <div className="disclaimer">
-            <b>⚠ Subject to change.</b> {r.meta.disclaimer}
+          <div className="ph">
+            <div className="l">
+              <img src="/assets/logo.png" alt="" />
+              Rise &amp; Shine Travel
+            </div>
+            <div className="pn">Indicative pricing</div>
           </div>
-          {r.pricing.priced === "live"
-            ? <span className="live"><span className="dot" />Flights &amp; hotels = live fetched totals · still subject to availability</span>
-            : <span className="live warn"><span className="dot" />Indicative sample rates — confirmed exactly on the booking call</span>}
-
-          {r.pricing.liveRows.length > 0 && (
-            <table className="ptab">
-              <tbody>
-                {r.pricing.liveRows.map((row, i) => (
-                  <tr key={i}><td>{row.label}</td><td>{inr(row.usd, fx)}</td></tr>
-                ))}
-                <tr className="gr"><td>Booking-assistance core</td><td>{inr(r.pricing.liveCoreUSD, fx)}</td></tr>
-              </tbody>
-            </table>
-          )}
-          <div className="subm" style={{ margin: "10px 0 4px" }}>Indicative add-ons — confirmed exactly on the booking call:</div>
+          <div className="h2">Package estimate (average market rates)</div>
+          <div className="disclaimer">
+            <b>Subject to change.</b> {r.meta.disclaimer}
+          </div>
+          <span className="live warn">
+            <span className="dot" />
+            Indicative averages — confirmed on your booking call
+          </span>
+          <table className="ptab">
+            <tbody>
+              {r.pricing.liveRows.map((row, i) => (
+                <tr key={i}>
+                  <td>{row.label}</td>
+                  <td>{inr(row.usd, fx)}</td>
+                </tr>
+              ))}
+              <tr className="gr">
+                <td>Flights + hotels (core)</td>
+                <td>{inr(r.pricing.liveCoreUSD, fx)}</td>
+              </tr>
+            </tbody>
+          </table>
           <table className="ptab">
             <tbody>
               {r.pricing.addOnRows.map((row, i) => (
-                <tr className="sub" key={i}><td>{row.label}</td><td>≈ {inr(row.usd, fx)}</td></tr>
+                <tr className="sub" key={i}>
+                  <td>{row.label}</td>
+                  <td>≈ {inr(row.usd, fx)}</td>
+                </tr>
               ))}
-              <tr className="sub"><td>Rise &amp; Shine planning &amp; service (12%)</td><td>≈ {inr(r.pricing.serviceUSD, fx)}</td></tr>
-              <tr className="gr"><td>Estimated package total</td><td>{inr(r.pricing.grandUSD, fx)}</td></tr>
+              <tr className="sub">
+                <td>Rise &amp; Shine planning &amp; service (12%)</td>
+                <td>≈ {inr(r.pricing.serviceUSD, fx)}</td>
+              </tr>
+              <tr className="gr">
+                <td>Estimated package total</td>
+                <td>{inr(r.pricing.grandUSD, fx)}</td>
+              </tr>
             </tbody>
           </table>
           <div className="ppp">
-            <div><div className="l">Approx. per person ({r.pricing.pax} sharing)</div>
-              <div style={{ fontSize: 11, opacity: .7 }}>FX ₹{fx}/$ · all figures indicative · not a guarantee of final fare or rate</div></div>
+            <div>
+              <div className="l">
+                Approx. per person ({r.pricing.pax} travellers)
+              </div>
+            </div>
             <div className="a">{inr(r.pricing.perPersonUSD, fx)}</div>
           </div>
         </div>
 
-        {(r.hotels || r.flights || r.visa) && (
-        <div className="page">
-          <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
-            <div className="pn">Booking Assistance</div></div>
-
-          {r.hotels && (
-            <>
-              <div className="h2">Your Stay</div>
-              <Fresh s={r.freshness.hotels} />
-              {r.hotels.map((h, i) => {
-                const sv = h.strikeUSD ? Math.round((1 - h.totalUSD / h.strikeUSD) * 100) : 0;
-                return (
-                  <div className="hcard" key={i}>
-                    <iframe className="map" loading="lazy"
-                      src={`https://www.google.com/maps?q=${h.lat},${h.lng}&z=14&output=embed`} title={h.name} />
-                    <div className="bd">
-                      <div className="nm">{h.name}</div>
-                      <div className="ar">{h.area}</div>
-                      <div className="stars">{"★".repeat(h.stars)}{"☆".repeat(5 - h.stars)}</div>
-                      <div className="pills">
-                        <span className="pill rate">★ {h.rating}/10</span>
-                        {h.reviews > 0 && <span className="pill">{h.reviews.toLocaleString("en-IN")} reviews</span>}
-                        <span className="pill">{h.nights} night{h.nights > 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="price">
-                        <span className="now">{inr(h.totalUSD, fx)}</span>
-                        {h.strikeUSD && <><span className="was">{inr(h.strikeUSD, fx)}</span><span className="sv">−{sv}%</span></>}
-                        <span className="u">(${h.totalUSD} · {h.nights}N · indicative)</span>
-                      </div>
-                      <a className="lnk" href={h.bookUrl} target="_blank" rel="noopener">Book ↗</a>
-                      <a className="lnk alt" href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`} target="_blank" rel="noopener">📍 Map ↗</a>
+        {r.flights && (
+          <div className="page">
+            <div className="ph">
+              <div className="l">
+                <img src="/assets/logo.png" alt="" />
+                Rise &amp; Shine Travel
+              </div>
+              <div className="pn">Flights</div>
+            </div>
+            <div className="h2">Flights · from {r.meta.originAirport}</div>
+            <div className="fcard">
+              {[r.flights.outbound, r.flights.inbound].map((l, i) => (
+                <div className="fleg" key={i}>
+                  <div>
+                    <div className="fr">
+                      {l.label} · {l.route}
+                    </div>
+                    <div className="fs">
+                      {r.flights!.carrier} · {l.flights} · {l.stops}
                     </div>
                   </div>
-                );
-              })}
-            </>
-          )}
-
-          {r.flights && (
-            <>
-              <div className="h2" style={{ marginTop: 18 }}>Flights · from {r.meta.originAirport}</div>
-              <Fresh s={r.freshness.flights} />
-              <div className="fcard">
-                {[r.flights.outbound, r.flights.inbound].map((l, i) => (
-                  <div className="fleg" key={i}>
-                    <div><div className="fr">{l.label} · {l.route}</div>
-                      <div className="fs">{r.flights!.carrier} · {l.flights} · {l.stops}</div></div>
-                    <div className="ft">{l.dep}<br /><span style={{ color: "var(--ink-faint)" }}>→ {l.arr}</span><br />{l.dur}</div>
+                  <div className="ft">
+                    {l.dep}
+                    <br />
+                    <span style={{ color: "var(--ink-faint)" }}>→ {l.arr}</span>
+                    <br />
+                    {l.dur}
                   </div>
-                ))}
-                <div className="fs" style={{ marginTop: 8 }}>{r.flights.fareNote}</div>
+                </div>
+              ))}
+              <div className="fs" style={{ marginTop: 8 }}>
+                {r.flights.fareNote}
               </div>
-            </>
-          )}
+              <div className="per-adult">
+                ≈ {inr(r.flights.perAdultUSD, fx)} per adult (round trip, average)
+              </div>
+            </div>
+          </div>
+        )}
 
-          {r.visa && (
-            <>
-              <div className="h2" style={{ marginTop: 18 }}>Visa Assistance</div>
-              <span className="live warn"><span className="dot" />Fees + processing times subject to consulate updates</span>
-              <table className="ptab vtab">
-                <tbody>
-                  <tr><td>Visa type</td><td>{r.visa.type}</td></tr>
-                  <tr><td>Validity</td><td>{r.visa.validity}</td></tr>
-                  <tr><td>Processing</td><td>{r.visa.processing}</td></tr>
-                  <tr><td>Fee</td><td>{r.visa.fee}</td></tr>
-                  <tr><td>Documents</td><td>{r.visa.docs}</td></tr>
-                </tbody>
-              </table>
-            </>
-          )}
-        </div>
+        {r.hotels && r.hotels.length > 0 && (
+          <div className="page">
+            <div className="ph">
+              <div className="l">
+                <img src="/assets/logo.png" alt="" />
+                Rise &amp; Shine Travel
+              </div>
+              <div className="pn">Your stay</div>
+            </div>
+            <div className="h2">4★ hotels (indicative)</div>
+            {r.hotels.map((h, i) => {
+              const sv = h.strikeUSD
+                ? Math.round((1 - h.totalUSD / h.strikeUSD) * 100)
+                : 0;
+              return (
+                <div className="hcard has-photo" key={i}>
+                  {h.photoUrl && (
+                    <img className="hcard-photo" src={h.photoUrl} alt={h.name} />
+                  )}
+                  <div className="bd">
+                    <div className="nm">{h.name}</div>
+                    <div className="ar">{h.area}</div>
+                    <div className="stars">
+                      {"★".repeat(h.stars)}
+                      {"☆".repeat(5 - h.stars)}
+                    </div>
+                    <div className="pills">
+                      <span className="pill rate">★ {h.rating}/10</span>
+                      {h.reviews > 0 && (
+                        <span className="pill">
+                          {h.reviews.toLocaleString("en-IN")} reviews
+                        </span>
+                      )}
+                      <span className="pill">
+                        {h.nights} night{h.nights > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="price">
+                      <span className="now">{inr(h.totalUSD, fx)}</span>
+                      {h.strikeUSD && (
+                        <>
+                          <span className="was">{inr(h.strikeUSD, fx)}</span>
+                          <span className="sv">−{sv}%</span>
+                        </>
+                      )}
+                      <span className="u">(avg. for stay · indicative)</span>
+                    </div>
+                    <a
+                      className="lnk alt"
+                      href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      📍 View on map
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         <div className="page">
-          <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
-            <div className="pn">Hour-by-Hour Plan</div></div>
-          <div className="h2">Your Day-by-Day Journey</div>
-          <div className="subm">Done-for-you — every hour planned with real places & diet-matched dining options.
-            &nbsp;<Fresh s={r.freshness.engine} /></div>
-          {days.map((d, i) => (
-            <DayCard key={d.dayIndex} d={d} editMode={editMode}
-              onChange={(nd) => updateDay(i, nd)} />
+          <div className="ph">
+            <div className="l">
+              <img src="/assets/logo.png" alt="" />
+              Rise &amp; Shine Travel
+            </div>
+            <div className="pn">Day-by-day plan</div>
+          </div>
+          <div className="h2">Your journey</div>
+          <div className="subm">{pkg?.routeSummary ?? ""}</div>
+          {r.days.map((d) => (
+            <NarrativeDayCard key={d.dayIndex} d={d} />
           ))}
         </div>
 
         <div className="page">
-          <div className="ph"><div className="l"><img src="/assets/logo.png" alt="" />Rise &amp; Shine Travel</div>
-            <div className="pn">Traveller Intel</div></div>
-          <div className="h2">Validated Against Real Traveller Experience</div>
-          <div className="subm">Filtered for {r.meta.groupLabel.toLowerCase()} · {r.meta.dietLabel.toLowerCase()} &nbsp;<Fresh s={r.freshness.intel} /></div>
-          <div className="intel">
-            <div className="ic do"><h4>✅ Do</h4><ul>{r.intel.do.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
-            <div className="ic sk"><h4>⛔ Skip</h4><ul>{r.intel.skip.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
-            <div className="ic ms"><h4>⭐ Don&apos;t miss</h4><ul>{r.intel.miss.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+          <div className="ph">
+            <div className="l">
+              <img src="/assets/logo.png" alt="" />
+              Rise &amp; Shine Travel
+            </div>
+            <div className="pn">Travel tips</div>
           </div>
-          <div className="idiet">🍃 <b>Matched to your diet:</b> {r.intel.diet}</div>
-          <div className="isrc">{r.intel.sources}</div>
+          <div className="h2">Good to know</div>
+          <div className="intel">
+            <div className="ic do">
+              <h4>Do</h4>
+              <ul>
+                {r.intel.do.map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="ic sk">
+              <h4>Skip</h4>
+              <ul>
+                {r.intel.skip.map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="ic ms">
+              <h4>Don&apos;t miss</h4>
+              <ul>
+                {r.intel.miss.map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div className="foot">
-          <div><span className="iata">IATTE</span> Rise &amp; Shine Travel · Ahmedabad</div>
+          <div>
+            <span className="iata">IATTE</span> Rise &amp; Shine Travel · Ahmedabad
+          </div>
           <div>+91-79-2329 7232 · info@riseandshinetravel.com</div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

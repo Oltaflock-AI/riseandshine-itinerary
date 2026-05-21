@@ -86,10 +86,11 @@ export class LiveProviderUnavailable extends Error {
 
 export async function buildItinerary(req: TripRequest): Promise<ItineraryResult> {
   const dest = DESTINATIONS[req.destinationKey] ?? DESTINATIONS.thailand;
-  const totalDays = req.durationNights + 1;
-  const endDate = addDays(req.startDate, req.durationNights);
+  const durationNights = req.durationNights ?? 5;
+  const totalDays = durationNights + 1;
+  const endDate = addDays(req.startDate, durationNights);
   const cityLegs = orderedCities(dest);
-  const nights = splitNights(cityLegs, req.durationNights);
+  const nights = splitNights(cityLegs, durationNights);
 
   // ── Parallel fan-out. Live providers only called when the matching toggle is ON. ──
   const [flightsRes, hotelsRes, reddit, ...poiResults] = await Promise.all([
@@ -98,10 +99,10 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
       : Promise.resolve(null),
     req.hotelAssist
       ? liveHotels(cityLegs[0].hotelCity, cityLegs[0].lat, cityLegs[0].lng,
-          req.startDate, endDate, req.adults, req.durationNights)
+          req.startDate, endDate, req.adults, durationNights)
       : Promise.resolve(null),
     redditSignal(dest.name),
-    ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet, req.travelStyle, req.groupType)),
+    ...cityLegs.map((c) => cityPOIs(c.name, c.lat, c.lng, req.diet ?? "veg", req.travelStyle ?? "balanced", req.groupType ?? "family")),
   ]);
 
   // Always compute a flight + hotel context for the engine (timing day 1, hotel anchors),
@@ -110,7 +111,7 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
   const hotelsCtx =
     hotelsRes && hotelsRes.length
       ? hotelsRes.slice(0, cityLegs.length).map((h, i) => ({ ...h, nights: nights[i] ?? h.nights }))
-      : sampleHotels(dest.key, req.budgetTier, nights);
+      : sampleHotels(dest.key, req.budgetTier ?? 4, nights);
 
   // City contexts for the engine (carry hotel coords for geo-efficient routing)
   let cursor = req.startDate;
@@ -132,7 +133,7 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
 
   const [claudeDays, intel] = await Promise.all([
     composeDaysWithClaude(req, ctx),
-    synthesizeIntel(dest.name, reddit, req.diet),
+    synthesizeIntel(dest.name, reddit, req.diet ?? "veg"),
   ]);
   const engineSource: "live" | "sample" = claudeDays ? "live" : "sample";
   const days = claudeDays ?? composeDaysTemplate(req, ctx);
@@ -153,10 +154,11 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
     (req.children ? ` + ${req.children} Child${req.children > 1 ? "ren" : ""}` : "") +
     (req.infants  ? ` + ${req.infants} Infant${req.infants > 1 ? "s" : ""}` : "");
   const dietLabel =
-    req.diet === "veg" ? "Vegetarian" : req.diet === "jain" ? "Jain"
-    : req.diet === "non-veg" ? "Non-Veg" : "Mixed";
+    (req.diet ?? "veg") === "veg" ? "Vegetarian" : (req.diet ?? "veg") === "jain" ? "Jain"
+    : (req.diet ?? "veg") === "non-veg" ? "Non-Veg" : "Mixed";
+  const tier = req.budgetTier ?? 4;
   const budgetLabel =
-    req.budgetTier === 3 ? "Budget (3★)" : req.budgetTier === 4 ? "Mid-range (4★)" : "Luxury (5★)";
+    tier === 3 ? "Budget (3★)" : tier === 4 ? "Mid-range (4★)" : "Luxury (5★)";
 
   const placesLive = poiResults.every((p) => p.source === "live");
 
@@ -164,7 +166,7 @@ export async function buildItinerary(req: TripRequest): Promise<ItineraryResult>
     meta: {
       destinationName: dest.name, title: dest.title, tagline: dest.tagline,
       startDate: req.startDate, endDate, groupLabel, dietLabel, budgetLabel,
-      visaNeeded: req.visaNeeded, pulledAt: new Date().toISOString().slice(0, 10),
+      visaNeeded: req.visaNeeded ?? false, pulledAt: new Date().toISOString().slice(0, 10),
       disclaimer: DISCLAIMER,
       originAirport: dest.originAirport,
     },
